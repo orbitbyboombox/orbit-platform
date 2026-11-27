@@ -46,7 +46,7 @@ test("asChild loading keeps Radix Slot to one child",()=>{
 });
 
 test("navigation uses real Next loading boundaries across platform and both portals",()=>{
-  for(const path of ["app/loading.tsx","app/(platform)/loading.tsx","app/(platform)/office-rent/loading.tsx","app/(platform)/projects/[projectId]/loading.tsx","app/staff-portal/loading.tsx","app/staff-portal/academy/loading.tsx","app/staff/login/loading.tsx","app/portal/login/loading.tsx","app/p/[token]/loading.tsx","app/booking/[token]/loading.tsx"]){
+  for(const path of ["app/loading.tsx","app/(platform)/office-rent/loading.tsx","app/(platform)/projects/[projectId]/loading.tsx","app/staff-portal/loading.tsx","app/staff-portal/academy/loading.tsx","app/staff/login/loading.tsx","app/portal/login/loading.tsx","app/p/[token]/loading.tsx","app/booking/[token]/loading.tsx"]){
     assert.match(read(path),/OrbitLoader|PageSkeleton/,path);
   }
   assert.match(read("app/layout.tsx"),/Suspense fallback=\{<OrbitLoader/);
@@ -56,7 +56,11 @@ test("every required Founder area inherits the platform loading boundary",()=>{
   for(const path of ["app/(platform)/operations/page.tsx","app/(platform)/customers/page.tsx","app/(platform)/resources/staff/page.tsx","app/(platform)/events/page.tsx","app/(platform)/finance/page.tsx","app/(platform)/projects/page.tsx","app/(platform)/settings/page.tsx","app/(platform)/office-rent/page.tsx"]){
     assert.equal(existsSync(path),true,path);
   }
-  assert.match(read("app/(platform)/loading.tsx"),/PageSkeleton/);
+  // The platform-specific skeleton introduced in 648d2ed4 keeps the workspace geometry.
+  const platformLoading = read("app/(platform)/loading.tsx");
+  assert.match(platformLoading, /aria-busy="true"[^>]*role="status"/);
+  assert.match(platformLoading, /aria-hidden="true"[^>]*motion-safe:animate-pulse/);
+  assert.match(platformLoading, /grid-cols-2[^"]*md:grid-cols-4/);
 });
 
 test("login and native receipt POST show actual pending without artificial timer",()=>{
@@ -82,7 +86,7 @@ test("automatic booking is tied to real pending state and never simulates server
 });
 
 test("server-action forms inherit pending state from the submitting form",()=>{
-  for(const path of ["app/(platform)/certification/page.tsx","components/layout/header.tsx","features/portal-authentication/staff-portal.tsx","features/settings/components/connection-center.tsx"]){
+  for(const path of ["app/(platform)/certification/page.tsx","components/layout/header.tsx","features/portal-authentication/staff-portal-dashboard.tsx","features/settings/components/connection-center.tsx"]){
     assert.match(read(path),/PendingSubmitButton/,path);
   }
 });

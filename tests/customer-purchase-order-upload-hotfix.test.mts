@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import ts from "typescript";
 import test from "node:test";
 
 import {
@@ -106,10 +108,49 @@ test("an unauthorized Drive retry cannot mutate document sync state", () => {
   assert.doesNotMatch(actions, /recordCustomerPurchaseOrderDriveFailure\(createAdminClient\(\), documentId, error\)/);
 });
 
-test("Drive archive is deterministic and idempotent", () => {
-  assert.equal(customerPurchaseOrderDriveFileName({ documentId: "12345678-0000-0000-0000-000000000000", orbitEventId: "2026-826", originalFilename: "OC final.pdf" }), "OC_CLIENTE_2026-826_12345678_OC-final.pdf");
+test("Drive archive reuses matching bytes and rejects a homonym without overwriting it", async () => {
+  const name = customerPurchaseOrderDriveFileName({ documentId: "12345678-0000-0000-0000-000000000000", orbitEventId: "2026-826", originalFilename: "OC final.pdf" });
+  assert.equal(name, "OC_CLIENTE_2026-826_12345678_OC-final.pdf");
   assert.match(drive, /archiveReservationDocumentToDrive/);
-  assert.match(source("features/connectors/google-drive/application/google-drive-document-routing.service.ts"), /findFileByName/);
+
+  type Provider = Pick<import("../features/connectors/google-drive/provider/google-drive-live.provider").GoogleDriveApiProvider, "findFilesByName" | "uploadFile">;
+  type Archive = (input: { provider: Provider; folderId: string; name: string; mimeType: string; bytes: Uint8Array }) => Promise<{ id: string; reused: boolean }>;
+  const exports = {} as { archiveVerifiedDriveFile: Archive };
+  const routing = source("features/connectors/google-drive/application/google-drive-document-routing.service.ts");
+  const code = ts.transpileModule(routing, {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  new Function("require", "exports", code)((module: string) => {
+    if (module === "node:crypto") return { createHash };
+    if (module === "./drive-reconciliation-lease") {
+      return { withDriveReconciliationLease: (_key: string, callback: () => unknown) => callback() };
+    }
+    return {};
+  }, exports);
+  const files: Awaited<ReturnType<Provider["findFilesByName"]>> = [];
+  let uploads = 0;
+  const provider: Provider = {
+    async findFilesByName(input) {
+      assert.equal(input.parentFolderId, "purchase-orders");
+      return files.filter(file => file.name === input.name);
+    },
+    async uploadFile(input) {
+      uploads++;
+      assert.equal(input.parentFolderId, "purchase-orders");
+      const file = { id: "existing-drive-id", name: input.name, md5Checksum: createHash("md5").update(input.bytes).digest("hex") };
+      files.push(file);
+      return file;
+    },
+  };
+  const input = { provider, folderId: "purchase-orders", name, mimeType: "application/pdf", bytes: Buffer.from("purchase order") };
+  const first = await exports.archiveVerifiedDriveFile(input);
+  const retry = await exports.archiveVerifiedDriveFile(input);
+  assert.equal(first.reused, false);
+  assert.equal(retry.reused, true);
+  assert.equal(retry.id, first.id);
+  await assert.rejects(() => exports.archiveVerifiedDriveFile({ ...input, bytes: Buffer.from("different purchase order") }), /requiere conciliación/);
+  assert.equal(uploads, 1);
+  assert.equal(files.length, 1);
 });
 
 test("failed metadata persistence cannot leave an orphan Storage object", () => {

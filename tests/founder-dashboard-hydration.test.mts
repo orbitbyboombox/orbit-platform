@@ -7,11 +7,12 @@ const dashboard = readFileSync(
   "utf8",
 );
 
-test("Founder action timestamps use deterministic Chile date parts", () => {
-  assert.match(dashboard, /const formatFounderActionTimestamp/);
-  assert.match(dashboard, /timeZone: "America\/Santiago"/);
-  assert.match(dashboard, /hourCycle: "h23"/);
-  assert.match(dashboard, /formatFounderActionTimestamp\(item\.createdAt\)/);
+test("Founder dashboard renders civil event dates without host time or punctuation differences", () => {
+  assert.match(dashboard, /function formatUpcomingEventDate/);
+  assert.match(dashboard, /new Date\(`\$\{value\}T12:00:00Z`\)/);
+  assert.match(dashboard, /timeZone: "UTC"/);
+  assert.match(dashboard, /formatToParts\(date\)/);
+  assert.match(dashboard, /formatUpcomingEventDate\(event\.date\)/);
 });
 
 test("Founder action SSR does not rely on locale punctuation", () => {

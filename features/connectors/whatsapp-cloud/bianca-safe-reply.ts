@@ -183,7 +183,7 @@ export function evaluateBiancaSafeReply(input: {
   };
 }
 
-export function safeReplyEvidenceFromDecision(decision: WhatsAppAiDecision): BiancaSafeReplyEvidence {
+export function safeReplyEvidenceFromDecision(): BiancaSafeReplyEvidence {
   // The AI decision is not evidence by itself. A canonical adapter must pass
   // verified evidence explicitly before catalog, price, availability, payment
   // or location claims can be released.

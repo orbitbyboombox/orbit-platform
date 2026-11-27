@@ -196,7 +196,14 @@ test("company quote PDF shows only + IVA transport messaging", async () => {
   assert.match(first, /CONOCER VALOR \+ IVA/);
   assert.match(first, /IVA 19% se agrega al total/);
   assert.doesNotMatch(first, /IVA incluido/);
-  assert.match(Buffer.from(pdf).toString("latin1"), /app\.bbox\.cl\/traslados/);
+  const document = await getDocument({ data: Uint8Array.from(pdf) }).promise;
+  try {
+    const page = await document.getPage(1);
+    const links = (await page.getAnnotations()).filter((annotation) => annotation.subtype === "Link");
+    assert.ok(links.some((annotation) => annotation.url === url), "the transport button links to the exact company quote URL");
+  } finally {
+    await document.destroy();
+  }
 });
 
 test("private quote PDF shows only IVA incluido transport messaging", async () => {

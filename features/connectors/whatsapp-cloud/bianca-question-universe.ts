@@ -269,7 +269,7 @@ export function classifyBiancaQuestionUniverse(input: { messageText: string; his
     })
     .filter((match): match is NonNullable<typeof match> => Boolean(match))
     .sort((a, b) => b.priority - a.priority || b.confidence - a.confidence)
-    .map(({ priority: _priority, ...match }) => match);
+    .map(({ intentId, domain, confidence, matchedAliases, description }) => ({ intentId, domain, confidence, matchedAliases, description }));
 }
 
 export function renderBiancaQuestionUniverseContext(input: { messageText: string; historyText?: string }): string {

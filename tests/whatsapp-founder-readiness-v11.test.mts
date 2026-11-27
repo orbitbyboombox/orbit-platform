@@ -21,8 +21,10 @@ test("registers WhatsApp types in Founder reconciler", () => {
   assert.ok(actions.includes("WHATSAPP_HUMAN_STALE"));
   assert.ok(actions.includes("WHATSAPP_UNREAD_CRITICAL"));
 });
-test("renders compact summary and safe CTA", () => {
-  assert.ok(workspace.includes("Esperando BOOMBOX"));
-  assert.ok(workspace.includes("Delivery: OFF"));
-  assert.ok(workspace.includes("/bianca"));
+test("renders the compact BIANCA summary with the waiting count and safe internal CTA", () => {
+  const card = workspace.slice(workspace.indexOf("const biancaCard"), workspace.indexOf("const position"));
+  assert.match(card, /Necesitan atención[\s\S]*\{whatsappSummary\.waitingBoombox\}/);
+  assert.match(card, /Delivery: OFF/);
+  assert.match(card, /href="\/bianca"[\s\S]*ABRIR BIANCA/);
+  assert.match(workspace, /key: "DASHBOARD_BIANCA"[\s\S]*content: biancaCard/);
 });

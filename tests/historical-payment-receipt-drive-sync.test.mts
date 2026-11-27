@@ -522,7 +522,7 @@ test("runner folder path is deterministic for canonical payment proof destinatio
     rootDriveFolder: "BOOMBOX ORBIT",
   });
 
-  assert.equal(folderPath, "BOOMBOX ORBIT/2026/December/05-12-2026 - Camila Sandoval/02_Comprobantes");
+  assert.equal(folderPath, "BOOMBOX ORBIT/01_CLIENTES/2026/12 DICIEMBRE/05-12-2026 - Camila Sandoval/02_Comprobantes");
 });
 
 test("runner does not use non-canonical customer override", () => {

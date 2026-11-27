@@ -22,5 +22,6 @@ test("segmented events use block requirements instead of the legacy event operat
 test("Staff reads and displays only the assigned operator blocks", () => {
   assert.match(portal, /block_id,event_operational_blocks\(id,name,start_at,end_at\)/);
   assert.match(portal, /operationalBlocks:item\.operationalBlocks/);
-  assert.match(dashboard, /TURNOS DE OPERADOR/);
+  assert.match(portal, /block_id,event_operational_blocks\(id,name,start_at,end_at\)[^\n]+\.eq\("staff_id",\s*staffId\)/);
+  assert.match(dashboard, /TUS TURNOS ASIGNADOS[\s\S]*event\.operationalBlocks\.map\(\(block\)/);
 });

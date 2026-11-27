@@ -14,15 +14,16 @@ test("negotiated post-send edits require and persist a reason", () => {
 });
 
 test("same-price edits remain optional while negotiated edits are required in UI", () => {
-  assert.match(ui, /negotiatedPostSend/);
-  assert.match(ui, /required=\{negotiatedPostSend\}/);
-  assert.match(ui, /Motivo del cambio \/ negociación \(obligatorio\)/);
+  assert.match(ui, /priceDiffersFromOfficial = initialDraft\?\.officialPrice != null && Math\.abs\(totals\.total - initialDraft\.officialPrice\) >= 1/);
+  assert.match(ui, /showChangeReason = Boolean\(persistedQuoteId\) && \(priceDiffersFromOfficial \|\| requiresChangeReason\)/);
+  assert.match(ui, /required=\{showChangeReason\}/);
+  assert.match(ui, /Motivo de negociación \(obligatorio para cambiar el precio\)/);
 });
 
 test("negotiated edits block the save button and preserve the database validation message", () => {
-  assert.match(ui, /changeReason\.trim\(\)\.length < 3/);
-  assert.match(ui, /Ingresa el motivo de negociación para guardar este nuevo valor/);
+  assert.match(ui, /if \(showChangeReason && !changeReason\.trim\(\)\)/);
+  assert.match(ui, /Para modificar el precio de una cotización enviada, indica el motivo de negociación/);
   assert.match(ui, /changeReasonRef\.current\?\.focus/);
   assert.match(actions, /technical\?\.code === "22023"/);
-  assert.match(actions, /return technical\.message/);
+  assert.match(actions, /El precio difiere del precio oficial\. Ingresa un motivo de negociación para guardar el cambio\./);
 });

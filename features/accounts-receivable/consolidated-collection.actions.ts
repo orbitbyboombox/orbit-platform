@@ -52,7 +52,6 @@ export async function previewConsolidatedCollectionAction(formData: FormData): P
     if ((existingCollections ?? []).length) throw new Error("Uno de los eventos ya tiene una cobranza consolidada en proceso. Revisa el historial antes de intentar nuevamente.");
     const company = await loadCompanySettings(client);
     const bankDetails = resolveCollectionBankDetails(company);
-    const body = buildConsolidatedCollectionText({ ...selected, bankDetails });
     const subject = collectionSubject(customerId, selected.overdueTotal);
     return { ok: true, recipient: recipients.to, subject, html: buildConsolidatedCollectionHtml({ ...selected, bankDetails }, subject), totalOutstanding: selected.totalOutstanding };
   } catch (error) { return failPreview(error); }

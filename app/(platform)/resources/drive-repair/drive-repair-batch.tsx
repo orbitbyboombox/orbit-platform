@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { repairPendingDocumentBackupsAction, inspectOscarReceiptIntegrityAction, approveOscarReceiptIntegrityAction } from "@/features/connectors/google-drive/actions/document-backup-repair.actions";
 
@@ -97,7 +98,7 @@ export function DriveRepairBatch({ documents }: { documents: PendingDocument[] }
         <p className="break-all">SHA-256 registrado: <code>{inspection.recordedSha256}</code></p>
         <p className="break-all">SHA-256 del archivo original: <code>{inspection.actualSha256}</code></p>
         <p className="text-muted">Vista previa temporal (caduca en 2 minutos). Si no corresponde al comprobante esperado, NO apruebes.</p>
-        <img src={inspection.previewUrl} alt="Vista previa del comprobante original de Oscar Ríos, solo para verificación administrativa" className="max-h-96 max-w-full rounded border object-contain"/>
+        <Image src={inspection.previewUrl} width={960} height={960} loading="eager" unoptimized alt="Vista previa del comprobante original de Oscar Ríos, solo para verificación administrativa" className="h-auto w-auto max-h-96 max-w-full rounded border object-contain"/>
         <label className="flex items-start gap-2"><input type="checkbox" checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)}/>
           <span>Revisé el comprobante y confirmo que este PNG corresponde al documento original de Oscar Ríos. Autorizo reemplazar únicamente el checksum incorrecto, conservar el valor anterior en auditoría e intentar vincularlo a la carpeta original.</span>
         </label>

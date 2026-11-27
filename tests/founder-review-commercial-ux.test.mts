@@ -17,6 +17,7 @@ const eventAction = read("features/crm/actions.ts");
 const eventCenter = read("features/crm/event-center.tsx");
 const eventRepository = read("features/crm/events-repository.ts");
 const migration = read("supabase/migrations/0173_event_date_atomic_update.sql");
+const canonicalStaffCall = read("supabase/migrations/0259_enforce_staff_call_exactly_60_minutes.sql");
 const scheduleRepair = read("supabase/migrations/0174_repair_event_service_schedule_writer.sql");
 const manualPdf = read("features/projects/signing/manual-reservation-formalization.service.ts");
 const signedPdf = read("features/projects/signing/digital-signature.service.ts");
@@ -71,7 +72,8 @@ test("event date edit preserves local schedule offsets", () => {
 test("event date and operational schedule commit through one atomic RPC", () => {
   assert.match(eventAction, /serviceStartLocal/);
   assert.match(eventAction, /serviceEndLocal/);
-  assert.match(eventAction, /staffCallLocal/);
+  assert.doesNotMatch(eventAction, /staffCallLocal/);
+  assert.match(canonicalStaffCall, /staff_call := public\.calculate_staff_call_at\(service_start\)/);
   assert.equal((eventAction.match(/update_crm_event_from_customer_profile/g) ?? []).length, 1);
   assert.doesNotMatch(eventAction, /\.rpc\("update_event_service_schedule"/);
   assert.match(migration, /perform public\.update_event_service_schedule/);

@@ -12,10 +12,12 @@ test("external cleanup has terminal residual-aware statuses and an auditable res
   assert.match(migration, /FAILED_RETRYABLE/);
   assert.match(migration, /FAILED_MANUAL_ACTION_REQUIRED/);
   assert.match(migration, /cleanup_residuals jsonb/);
-  assert.match(cleanup, /appNotAuthorizedToChild/);
-  assert.match(cleanup, /requiresManualAction/);
-  assert.match(cleanup, /DRIVE_EXTERNAL_OWNERSHIP/);
-  assert.match(cleanup, /SHARED_PARENT_PRESERVED/);
+  // Historical residuals remain reviewable, while current jobs preserve client files.
+  assert.match(cleanup, /event_deletion_cleanup\.client_files_preserved/);
+  assert.match(cleanup, /driveFiles: arrayOfStrings\(cleanup\.driveFileIds\)\.length/);
+  assert.match(cleanup, /driveFolders: arrayOfStrings\(cleanup\.driveFolderIds\)\.length/);
+  assert.match(cleanup, /storageObjects: Array\.isArray\(cleanup\.storageObjects\)/);
+  assert.doesNotMatch(cleanup, /deleteFile|deleteFolder|trashFile|\.storage\b|\.remove\(/);
 });
 
 test("Founder receives the residual-specific outcome and a cleanup review entry point", () => {

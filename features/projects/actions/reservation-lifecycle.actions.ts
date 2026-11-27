@@ -78,7 +78,7 @@ export async function testFullPurgeEventAction(projectId: string, reason: string
   }
 }
 
-export async function transitionReservationLifecycleAction(projectId:string,action:ReservationLifecycleAction,reason:string,confirmation?:string,_deleteOrphanCustomer=false):Promise<{ok:boolean;message:string}>{
+export async function transitionReservationLifecycleAction(projectId:string,action:ReservationLifecycleAction,reason:string,confirmation?:string):Promise<{ok:boolean;message:string}>{
   try{
     if(!projectId||reason.trim().length<3)throw new Error("Registra un motivo para continuar.");
     const client=await createSupabaseServerClient();const{data:auth,error:authError}=await client.auth.getUser();if(authError||!auth.user)throw new Error("Tu sesión expiró. Vuelve a iniciar sesión.");

@@ -53,6 +53,7 @@ const sentRow = {
       date: "2026-10-10",
       time: "18:30",
       location: "Centro de Eventos",
+      address: "Av. Dos 456",
       city: "Las Condes",
     },
     subtotal: 290000,
@@ -260,7 +261,9 @@ test("18 incomplete conversion is truthful and exposes the canonical resume acti
   assert.equal(actions.conversionIncomplete, true);
   assert.equal(actions.canResume, true);
   assert.match(detailUi, /REANUDAR CONVERSIÓN/);
-  assert.match(detailUi, /resumeQuotationConversionAction/);
+  assert.match(detailUi, /resumeManualReservationAction\(transactionId\)/);
+  assert.match(detailUi, /quoteDetailActions\(quote.status, quote.projectId, quote.conversion\)/);
+  assert.match(detailRepository, /\.eq\("id", quote.conversion_transaction_id\)/);
   assert.match(detailUi, /RESERVA CREADA · CONFIGURACIÓN PENDIENTE/);
 });
 

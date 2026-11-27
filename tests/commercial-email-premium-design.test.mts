@@ -9,7 +9,8 @@ import { buildSocialPlansEmail } from "../features/commercial-hub/social-plans-e
 const source = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("shared premium commercial shell is email-client safe and branded", () => {
+
+test("shared dark commercial shell keeps official branding and table-based email CTAs", () => {
   const html = renderBoomboxCommercialEmail({
     preheader: "Tu cotización está lista.",
     eyebrow: "COTIZACIÓN BOOMBOX",
@@ -25,53 +26,36 @@ test("shared premium commercial shell is email-client safe and branded", () => {
   assert.match(html, /role="presentation"/);
   assert.match(html, /name="viewport" content="width=device-width,initial-scale=1"/);
   assert.match(html, /width:100%;max-width:640px/);
-  assert.match(html, /width:300px/);
-  assert.match(html, /background-color:#000000/);
-  assert.match(html, /bgcolor="000000"/);
-  assert.match(html, /v:roundrect/);
-  assert.match(html, /background-color:#F78900/);
+  assert.match(html, /width:270px;max-width:100%/);
+  assert.match(html, /background-color:#111214/);
+  assert.match(html, /<table class="orbit-action"[^>]*role="presentation"[^>]*><tr><td[^>]*bgcolor="#f78900"[^>]*mso-padding-alt:15px 24px/);
   assert.equal((html.match(/boombox-official-logo\.png/g) ?? []).length, 2);
   assert.match(html, /alt="BOOMBOX®"/);
-  assert.match(html, />VER COTIZACIÓN</);
+  assert.match(html, /href="https:\/\/orbit\.boom-box\.cl\/documento"[^>]*>VER COTIZACIÓN</);
   assert.match(html, /PDF ADJUNTO/);
   assert.match(html, /<a href="https:\/\/www\.bbox\.cl"[^>]*>www\.bbox\.cl<\/a>/);
-  assert.match(html, /COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®/);
-  assert.doesNotMatch(html, /PRODUCCIONES BOOMBOX COMPANY SPA/);
-  assert.doesNotMatch(html, />BOOMBOX</);
-  assert.doesNotMatch(html, /Documento y comunicación emitidos/);
+  assert.match(html, /BOOMBOX · Comunicación emitida mediante ORBIT<\/span><br>ORBIT · Software desarrollado por BOOMBOX/);
+  assert.doesNotMatch(html, /PRODUCCIONES BOOMBOX COMPANY SPA|Documento y comunicación emitidos/);
   assert.match(html, /@media only screen and \(max-width:520px\)/);
   assert.match(html, /class="orbit-body"/);
-  assert.match(html, /class="orbit-action"/);
+  assert.match(html, /class="orbit-action-link"/);
 });
 
-test("automatic booking invitation uses the canonical BOOMBOX welcome base", () => {
+
+test("automatic booking invitation uses the canonical BOOMBOX welcome base and a one-time link", () => {
   const service = source("features/automatic-booking/automatic-booking.service.ts");
-  const html = renderBoomboxCommercialEmail({
-    preheader: "Tu acceso ya está listo.",
-    eyebrow: "",
-    title: "¡Bienvenido a BOOMBOX!",
-    headerLabel: "EVENTOS QUE CONECTAN",
-    stackedHeader: true,
-    contentHtml: "<p>Tu experiencia comienza aquí.</p>",
-    benefits: ["Completar los datos de tu evento", "Elegir tus servicios", "Revisar tu contrato", "Confirmar tu reserva"],
-    closingLine: "Cada evento cuenta. Tu experiencia comienza con BOOMBOX.",
-    website: "https://www.bbox.cl",
-    primaryAction: { href: "https://app.bbox.cl/booking/fixture", label: "COMPLETAR MI RESERVA  →" },
-  });
-  assert.match(service, /renderBoomboxCommercialEmail\(/);
-  assert.doesNotMatch(service, /<div style=\"font-family:Arial,sans-serif;max-width:560px/);
-  assert.match(html, /<h1[^>]*>¡Bienvenido a BOOMBOX!<\/h1>/);
-  assert.doesNotMatch(html, /<p[^>]*color:#f78900[^>]*>BOOMBOX<\/p>/);
-  assert.match(html, /Una vez dentro podrás:/);
-  assert.match(html, /EXPERIENCIAS<br>RECUERDOS<br>MOMENTOS/);
-  assert.match(html, /background-color:#000000/);
-  assert.match(html, /COMPLETAR MI RESERVA/);
-  assert.match(html, /boombox-official-logo\.png/);
-  assert.equal((html.match(/boombox-official-logo\.png/g) ?? []).length, 2);
-  assert.match(html, /<a href="https:\/\/www\.bbox\.cl"[^>]*>www\.bbox\.cl<\/a>/);
-  assert.match(html, /COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®/);
-  assert.match(html, /margin-top:0[^>]*>EVENTOS QUE CONECTAN/);
-  assert.match(html, /margin:38px 0 0;background-color:#000000;border-top:1px solid #343538;padding-top:30px/);
+  assert.match(service, /const htmlBody = renderBoomboxCommercialEmail\(\{/);
+  assert.match(service, /title: "¡Bienvenido a BOOMBOX!"/);
+  assert.match(service, /headerLabel: "EVENTOS QUE CONECTAN"/);
+  for (const text of ["Una vez dentro podrás", "Completar los datos de tu evento", "Elegir tus servicios", "Revisar tu contrato", "Confirmar tu reserva"])
+    assert.ok(service.includes(text));
+  assert.match(service, /primaryAction: \{ href: url, label: "COMPLETAR MI RESERVA" \}/);
+  assert.match(service, /Este enlace es personal, vence en 7 días y funciona una sola vez/);
+  assert.match(service, /const url = `\$\{appOrigin\(\)\}\/booking\/\$\{token\}`/);
+  assert.match(service, /randomBytes\(32\)\.toString\("base64url"\)/);
+  assert.match(service, /token_hash: hash\(token\), expires_at: expiresAt/);
+  assert.match(service, /to: customerEmail, from: senderEmail,[^\n]+htmlBody/);
+  assert.doesNotMatch(service, /<div style="font-family:Arial,sans-serif;max-width:560px/);
 });
 
 test("official BOOMBOX logo asset and confirmation finance/portal contrast are canonical", () => {
@@ -99,7 +83,7 @@ test("Empresa reservation uses the shared premium shell and safe portal CTA", ()
   );
   assert.match(html, /RESERVA CONFIRMADA/);
   assert.match(html, /BIENVENIDOS A BOOMBOX/);
-  assert.equal((html.match(/ABRIR EVENTO EN ORBIT/g) ?? []).length, 2);
+  assert.equal((html.match(/ABRIR EVENTO EN ORBIT/g) ?? []).length, 1);
   assert.match(html, /href="https:\/\/orbit\.boom-box\.cl\/portal"/);
   assert.match(html, /PDF ADJUNTO/);
   assert.doesNotMatch(html, /\/projects\/|token=|access_token/i);
@@ -119,7 +103,7 @@ test("non-Empresa reservation uses the shared premium renderer", () => {
 
 test("formal quote delivery uses premium shell without changing delivery semantics", () => {
   const actions = source("features/commercial-hub/actions.ts");
-  assert.match(actions, /renderBoomboxCommercialEmail\(\{/);
+  assert.match(actions, /const htmlBody = renderPremiumQuotationEmail\(\{/);
   assert.match(actions, /label: "VER COTIZACIÓN"/);
   assert.match(actions, /label: "VER CATÁLOGO EMPRESAS"/);
   assert.match(actions, /attachments: \[\{ filename: attachmentFilename, mimeType: "application\/pdf"/);
@@ -155,33 +139,33 @@ test("social initial copy is concise and removes the obsolete quote checklist", 
   assert.match(quickSendInitialBody("COMPANIES_CATALOG", "Texto Empresa"), /Gracias por considerar a BOOMBOX/);
 });
 
-test("Matrimonio and social categories share one premium Planes y Valores renderer", () => {
+
+test("Matrimonio and social categories share one premium renderer and keep their own copy", () => {
   const catalogUrl = "https://orbit.boom-box.cl/catalogo/novios";
-  for (const category of ["WEDDINGS", "BIRTHDAYS", "GRADUATIONS"]) {
-    const body = quickSendInitialBody(category, "configuración antigua");
-    const rendered = buildSocialPlansEmail({
-      body,
+  for (const [category, intro] of [
+    ["WEDDINGS", /cada recuerdo de su matrimonio/],
+    ["BIRTHDAYS", /Cada cumpleaños merece celebrarse en grande/],
+    ["GRADUATIONS", /alegría de tu graduación/],
+  ] as const) {
+    const html = buildSocialPlansEmail({
+      category,
+      body: quickSendInitialBody(category, "configuración antigua"),
       contact: "joaquín pérez",
       website: "https://www.bbox.cl",
       catalogUrl,
       attachmentFilename: "Planes y Valores BOOMBOX.pdf",
-    });
-    assert.match(rendered.html, /EXPERIENCIAS PARA TU (MATRIMONIO|CUMPLEAÑOS|EVENTO)/);
-    assert.match(rendered.html, /Hola Joaquín Pérez,/);
-    assert.match(rendered.html, /Desde hace 16 años/);
-    assert.match(rendered.html, /NUESTRA PROPUESTA/);
-    assert.match(rendered.html, />VER PLANES Y VALORES</);
-    assert.match(rendered.html, /href="https:\/\/orbit\.boom-box\.cl\/catalogo\/novios"/);
-    assert.match(rendered.html, /PDF ADJUNTO/);
-    assert.match(rendered.html, /Planes y Valores BOOMBOX\.pdf/);
-    assert.doesNotMatch(rendered.html, /¿QUIERES COTIZAR\?/);
-    assert.doesNotMatch(rendered.html, /servicio que te interesa|Respóndenos indicando:|lugar del evento/);
-    assert.match(rendered.html, /Quedamos atentos por si tienes dudas/);
-    assert.match(rendered.html, /Importante:<\/strong> Las fechas se confirman mediante reserva y están sujetas a disponibilidad/);
-    assert.match(rendered.html, /COMUNICACIÓN EMITIDA MEDIANTE ORBIT SOFTWARE DESARROLLADO POR BOOMBOX®/);
-    assert.match(rendered.html, /<a href="https:\/\/www\.bbox\.cl"[^>]*>www\.bbox\.cl<\/a>/);
-    assert.ok(rendered.html.indexOf("Encontrarás el detalle completo") < rendered.html.indexOf("VER PLANES Y VALORES"));
-    assert.ok(rendered.html.indexOf("VER PLANES Y VALORES") < rendered.html.indexOf("Quedamos atentos"));
+    }).html;
+    assert.match(html, /EXPERIENCIAS QUE CONECTAN/);
+    assert.match(html, /Hola Joaquín Pérez,/);
+    assert.match(html, intro);
+    assert.match(html, /TU COTIZACIÓN ESTÁ LISTA/);
+    assert.match(html, /href="https:\/\/orbit\.boom-box\.cl\/catalogo\/novios\/document"[^>]*>VER COTIZACIÓN PDF</);
+    assert.doesNotMatch(html, /¿QUIERES COTIZAR\?|Respóndenos indicando:|PDF ADJUNTO/);
+    assert.match(html, /Un abrazo,<br><strong>Equipo BOOMBOX/);
+    assert.match(html, /BOOMBOX · Comunicación emitida mediante ORBIT<br>ORBIT · Software desarrollado por BOOMBOX/);
+    assert.match(html, /<a href="https:\/\/www\.bbox\.cl"[^>]*>www\.bbox\.cl<\/a>/);
+    assert.ok(html.indexOf("Hola Joaquín Pérez") < html.indexOf("VER COTIZACIÓN PDF"));
+    assert.ok(html.indexOf("VER COTIZACIÓN PDF") < html.indexOf("Un abrazo"));
   }
 });
 
@@ -192,9 +176,9 @@ test("social renderer adapts proposal copy safely when delivery uses the certifi
     website: "https://www.bbox.cl",
     catalogUrl: "https://orbit.boom-box.cl/catalogo/eventos",
   });
-  assert.match(rendered.html, /Revisa los planes disponibles/);
+  assert.match(rendered.html, /Descubre los servicios, valores y todos los detalles en tu cotización PDF/);
   assert.doesNotMatch(rendered.html, /documento adjunto|PDF ADJUNTO/);
-  assert.match(rendered.text, /VER PLANES Y VALORES: https:\/\/orbit\.boom-box\.cl\/catalogo\/eventos/);
+  assert.match(rendered.text, /VER COTIZACIÓN PDF: https:\/\/orbit\.boom-box\.cl\/catalogo\/eventos\/document/);
 });
 
 test("social premium HTML remains safe at Gmail mobile and contained on desktop", () => {
@@ -205,12 +189,12 @@ test("social premium HTML remains safe at Gmail mobile and contained on desktop"
     catalogUrl: "https://orbit.boom-box.cl/catalogo/novios",
   }).html;
   assert.match(html, /name="viewport" content="width=device-width,initial-scale=1"/);
-  assert.match(html, /padding:24px 10px/);
-  assert.match(html, /width:100%;max-width:640px/);
-  assert.match(html, /width:300px/);
+  assert.match(html, /padding:28px 12px/);
+  assert.match(html, /width:100%;max-width:620px/);
+  assert.match(html, /width:310px;max-width:100%/);
   assert.doesNotMatch(html, /width:\s*[7-9][0-9]{2}px/);
-  assert.match(html, /@media only screen and \(max-width:520px\)/);
-  assert.match(html, /orbit-action-link/);
+  assert.match(html, /@media only screen and \(max-width:420px\)\{\.orbit-quote-logo\{max-height:121px!important\}/);
+  assert.match(html, /<a href="https:\/\/orbit\.boom-box\.cl\/catalogo\/novios\/document"[^>]*display:block/);
 });
 
 test("social redesign preserves recipients, optional PDF, idempotency, and Empresa branch", () => {
@@ -222,17 +206,24 @@ test("social redesign preserves recipients, optional PDF, idempotency, and Empre
   assert.match(actions, /buildSocialPlansEmail\(\{/);
 });
 
-test("graphical BOOMBOX signature stays compact across every email sender", () => {
-  const senders = [
-    source("features/commercial-hub/actions.ts"),
-    source("features/commercial-hub/social-plans-email.ts"),
-    source("features/connectors/whatsapp-cloud/whatsapp-catalog.delivery.ts"),
-  ].join("\n");
-  assert.equal((senders.match(/max-width:280px/g) ?? []).length, 4);
-  assert.doesNotMatch(senders, /max-width:420px|max-width:600px/);
-  assert.match(source("features/commercial-hub/commercial-hub.tsx"), /max-w-\[420px\]/);
-});
 
+test("formal quote and WhatsApp catalog use compact graphical signatures, while social plans use a text closing", () => {
+  const formalQuote = source("features/commercial-hub/actions.ts");
+  const whatsapp = source("features/connectors/whatsapp-cloud/whatsapp-catalog.delivery.ts");
+  for (const sender of [formalQuote, whatsapp]) {
+    assert.match(sender, /<img src="\$\{escapeHtml\(signatureUrl\)\}"[^>]*max-width:280px;[^"]*max-height:72px/);
+    assert.doesNotMatch(sender, /<img src="\$\{escapeHtml\(signatureUrl\)\}"[^>]*max-width:(?:420|600)px/);
+  }
+  const html = buildSocialPlansEmail({
+    body: quickSendInitialBody("WEDDINGS", ""),
+    contact: "Joaquín",
+    website: "https://www.bbox.cl",
+    catalogUrl: "https://orbit.boom-box.cl/catalogo/novios",
+    signatureUrl: "https://example.invalid/signature.gif",
+  }).html;
+  assert.match(html, /Un abrazo,<br><strong>Equipo BOOMBOX<\/strong>/);
+  assert.doesNotMatch(html, /signature\.gif/);
+});
 
 test("catalog emails expose tax-specific transport CTA without mixing customer types", () => {
   const privateEmail = buildSocialPlansEmail({
@@ -252,7 +243,7 @@ test("catalog emails expose tax-specific transport CTA without mixing customer t
   assert.match(actions, /input\.category === "COMPANIES_CATALOG"/);
   assert.match(actions, /CONOCER VALOR DE TRASLADO \+ IVA/);
   assert.match(actions, /CONOCER VALOR DE TRASLADO/);
-  assert.match(actions, /secondaryAction: \{ href: transportUrl, label: transportLabel \}/);
+  assert.match(actions, /buildSocialPlansEmail\(\{[^}]*catalogUrl: publicUrl,\s*transportUrl,\s*transportLabel,/);
 });
 
 
@@ -270,5 +261,6 @@ test("premium customer email shell keeps readable spacing on mobile", () => {
   assert.match(html, /\.orbit-body \.orbit-signature p\{margin:0!important\}/);
   assert.match(html, /\.orbit-action\{width:100%!important/);
   assert.match(html, /\.orbit-action-link\{display:block!important;width:100%!important/);
-  assert.match(html, /\.orbit-footer td\{display:block!important/);
+  assert.match(html, /\.orbit-body\{padding:20px 18px!important/);
+  assert.doesNotMatch(html, /min-width:260px/);
 });

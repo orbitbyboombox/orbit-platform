@@ -31,8 +31,9 @@ test("atomic writer rejects invalid calls and clears derived assignment calls",(
 test("Event editor persists current address through the shared action",()=>{
   assert.match(eventCenter,/eventAddress/);
   assert.match(eventCenter,/Dirección/);
-  assert.match(action,/eventAddress: input\.eventAddress/);
-  assert.match(calendar,/currentEventAddress/);
+  assert.match(action,/eventAddress: input\.eventAddress\.trim\(\)/);
+  assert.match(calendar,/const address=readEventAddress\(project\.operations\)/);
+  assert.match(calendar,/customerAddress:address/);
 });
 test("Calendar updates the existing event and rejects empty ranges",()=>{
   assert.match(mapper,/provider\.updateEvent\(existing\.googleEventId/);

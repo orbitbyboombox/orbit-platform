@@ -9,7 +9,9 @@ const detailUi = readFileSync(new URL("../../features/commercial-hub/quote-detai
 const repository = readFileSync(new URL("../../features/commercial-hub/repository.ts", import.meta.url), "utf8");
 
 test("commercial quote editing uses the canonical atomic persistence boundary", () => {
-  assert.match(actions, /save_commercial_quote_draft/);
+  const canonicalService = readFileSync(new URL("../../features/commercial-hub/canonical-quote.service.ts", import.meta.url), "utf8");
+  assert.match(actions, /await executeCanonicalQuoteDraft\(\{\s*client,/);
+  assert.match(canonicalService, /client\.rpc\("save_commercial_quote_draft"/);
   assert.match(actions, /prepareCommercialQuoteRevisionAction/);
   assert.match(migration, /pg_advisory_xact_lock/);
   assert.match(migration, /prepare_commercial_quote_revision/);

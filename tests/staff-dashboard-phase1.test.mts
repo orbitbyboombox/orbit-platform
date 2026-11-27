@@ -39,7 +39,9 @@ test("Staff Phase 1 keeps the published event visibility boundary", () => {
 
 test("Staff Phase 1 exposes the expense CTA and responsibility action", () => {
   assert.match(dashboard, /Sube tu gasto/);
-  assert.match(dashboard, /TOMAR · Ver pago/);
+  assert.match(dashboard, /TOMAR RESPONSABILIDAD · Ver detalle/);
+  assert.match(dashboard, /Honorarios: \{event\.available\.map/);
+  assert.match(dashboard, /Total estimado: \{money\(total\)\}/);
   assert.match(dashboard, /TOMAR RESPONSABILIDAD/);
   assert.match(dashboard, /requestStaffResponsibilitiesAction/);
 });

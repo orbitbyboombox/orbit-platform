@@ -4,18 +4,17 @@ import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { GoogleGmailApiProvider } from "@/features/connectors/google-gmail/provider/google-gmail-live.provider";
-import { renderBoomboxCommercialEmail } from "@/features/connectors/google-gmail/application/boombox-commercial-email.html";
 import { renderPremiumQuotationEmail } from "@/features/connectors/google-gmail/application/boombox-premium-quotation-email.html";
 import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import type { CommercialCategory, FormalQuoteDraft } from "./types";
 import { isCommercialEmail } from "./quote-calculation";
-import { prepareFormalQuotePersistence } from "./quote-persistence";
+import { executeCanonicalQuoteDraft } from "./canonical-quote.service";
 import { createFormalQuotePdf } from "./formal-quote-pdf";
 import { resolveCommercialBreakdown } from "./commercial-breakdown";
 import { loadCompanySettings } from "@/features/company-settings";
 import { createCustomerProjectAction } from "@/features/projects/actions/customer.actions";
 import type { ProjectDraft } from "@/features/projects/types/project";
-import { commercialSignatureMode, emailParagraphs, formalQuoteSubject, normalizeEmailNewlines, quickSendBodyParagraphs, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, withoutDuplicateSignature } from "./presentation";
+import { emailParagraphs, formalQuoteSubject, normalizeEmailNewlines, quoteDisplayFilename, quoteStorageKey, resolveQuickSendBody, withoutDuplicateSignature } from "./presentation";
 import { catalogCategoryForQuickSend, catalogPublicUrl, isCommercialCatalogCategory } from "./catalogs";
 import { normalizeQuoteOperationalConditions } from "./operational-conditions";
 import { normalizeEmailRecipients, normalizeOptionalEmail } from "@/lib/email/recipients";
@@ -216,22 +215,11 @@ export async function sendCommercialInformationAction(input: {
     const downloaded = input.attachPdf ? await admin.storage.from("orbit-documents").download(document.storage_path) : null;
     if (downloaded?.error) throw downloaded.error;
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
-    const signatureMode = commercialSignatureMode(signatureUrl);
-    const signature = signatureMode === "GRAPHICAL" ? `<p style="margin:24px 0 0"><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>` : `<p style="margin:8px 0 0"><strong>Equipo BOOMBOX</strong></p>`;
     const cleanBody = withoutDuplicateSignature(withoutDuplicateSignature(body, company.emailSignature || "Equipo BOOMBOX"), "Equipo BOOMBOX");
-    const richText = (paragraph: string) => paragraph.split(/(\*\*[^*]+\*\*)/g).map((part) => part.startsWith("**") && part.endsWith("**") ? `<strong>${escapeHtml(part.slice(2, -2))}</strong>` : escapeHtml(part)).join("").replaceAll("\n", "<br>");
-    const htmlParagraphs = quickSendBodyParagraphs(cleanBody, input.name).map((paragraph) => {
-      if (paragraph.replaceAll("**", "").trim() === "¿QUIERES COTIZAR?")
-        return `<h2 style="margin:28px 0 12px;color:#d76d00;font-size:14px;letter-spacing:.1em">¿QUIERES COTIZAR?</h2>`;
-      if (paragraph.startsWith("Respóndenos indicando:"))
-        return `<div style="margin:0 0 18px;padding:16px 18px;background:#fff7eb;border:1px solid #f4d5aa;border-radius:12px">${richText(paragraph)}</div>`;
-      if (paragraph.startsWith("**Importante:**"))
-        return `<p style="margin:20px 0 0;padding:14px 16px;background:#f7f5f1;border-radius:10px;color:#5d574f;font-size:13px">${richText(paragraph)}</p>`;
-      return `<p style="margin:0 0 16px">${richText(paragraph)}</p>`;
-    }).join("");
     // All catalog categories use the approved premium design, including Companies Catalog.
     // The separate formal/manual company quotation flow remains unchanged.
     const socialEmail = buildSocialPlansEmail({
+      category: input.category,
       body: cleanBody,
       contact: input.name,
       website: company.website,
@@ -311,41 +299,12 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
       if (error) throw error;
       customerId = data.id;
     }
-    const issueDate = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date());
-    const expiration = new Date(`${issueDate}T12:00:00Z`);
-    expiration.setUTCDate(expiration.getUTCDate() + input.validityDays);
-    const prepared = prepareFormalQuotePersistence(input);
-    const { data: saved, error: saveError } = await client.rpc(
-      "save_commercial_quote_draft",
-      {
-        p_quotation_id: quoteId,
-        p_quote: {
-          issueDate,
-          customerId,
-          customerSnapshot: prepared.customerSnapshot,
-          commercialSnapshot: prepared.commercialSnapshot,
-          expirationDate: expiration.toISOString().slice(0, 10),
-          subtotal: prepared.calculation.subtotal,
-          discountTotal: prepared.calculation.discount,
-          taxTotal: prepared.calculation.vat,
-          grandTotal: prepared.calculation.total,
-          validityDays: input.validityDays,
-          depositPercent: input.depositPercent,
-          changeReason: input.changeReason?.trim() || "",
-          globalDiscountType: input.globalDiscountType,
-          globalDiscountValue: input.globalDiscountValue,
-        },
-        p_items: prepared.items,
-      },
-    );
-    if (saveError) throw saveError;
-    const result = saved as {
-      quotationId?: string;
-      quotationNumber?: string;
-      operation?: "CREATED" | "UPDATED";
-    } | null;
-    if (!result?.quotationId || !result.quotationNumber || !result.operation)
-      throw new Error("La persistencia no confirmó la cotización.");
+    const result = await executeCanonicalQuoteDraft({
+      client,
+      draft: { ...input, requestId: quoteId },
+      customerId,
+      actor: { actorType: "HUMAN", actorId: "HUMAN_USER", source: "FOUNDER_UI" },
+    });
     const number = result.quotationNumber;
     const operation = result.operation;
     const correlationId = `commercial-quote:${quoteId}:${operation.toLowerCase()}:${input.requestId ?? quoteId}`;
@@ -378,7 +337,7 @@ export async function createFormalQuoteAction(input: FormalQuoteDraft) {
       ok: true as const,
       id: result.quotationId,
       number,
-      total: prepared.calculation.total,
+      total: result.total,
       operation,
     };
   } catch (error) {
@@ -451,18 +410,40 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
   let acceptedMessage: { messageId: string; threadId: string } | null = null;
   let acceptedProviderAccount: string | undefined;
   const admin = createAdminClient();
+  let stage = "QUOTE_SEND_LOAD";
   try {
-    const { user } = await founder();
+    const { client, user } = await founder();
+    if (!/^[0-9a-f-]{36}$/i.test(input.requestId)) throw new Error("Clave de envío inválida.");
     const recipients = normalizeEmailRecipients({ to: input.email, cc: input.cc });
+    const { data: existingSend, error: existingSendError } = await client.from("commercial_sends")
+      .select("status,quotation_id").eq("idempotency_key", input.requestId).maybeSingle();
+    if (existingSendError) throw existingSendError;
+    if (existingSend && existingSend.quotation_id !== input.quoteId) throw new Error("La clave de envío pertenece a otra cotización.");
+    if (isCommercialSendAccepted(existingSend?.status)) return { ok: true as const, message: "Este envío ya fue aceptado por Gmail." };
+    if (existingSend?.status === "PREPARING") return { ok: true as const, message: "Este envío ya está siendo procesado." };
+
+    stage = "QUOTE_SEND_VERSION";
+    const { data: versionId, error: ensureVersionError } = await client.rpc("ensure_current_quote_version", {
+      p_quote_id: input.quoteId,
+      p_actor: user.id,
+    });
+    if (ensureVersionError) throw ensureVersionError;
+    const { data: currentVersion, error: currentVersionError } = await client.from("quote_versions")
+      .select("id,version_number,pdf_storage_path").eq("quote_id", input.quoteId).eq("id", versionId).single();
+    if (currentVersionError || !currentVersion) throw currentVersionError ?? new Error("La versión vigente no está disponible.");
+    const version = currentVersion.version_number;
+
+    stage = "QUOTE_SEND_LOAD";
     const [{ data: quote, error }, company, workspace] = await Promise.all([
-      admin.from("quotations").select("id,quotation_number,issue_date,expiration_date,customer_id,project_id,customer_snapshot,commercial_snapshot,pricing_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,item_type,display_order)").eq("id", input.quoteId).single(),
+      client.from("quotations").select("id,status,updated_at,quotation_number,issue_date,expiration_date,customer_id,project_id,customer_snapshot,commercial_snapshot,pricing_snapshot,quotation_items(description,label,quantity,quoted_price,unit_price,total,item_type,display_order)").eq("id", input.quoteId).eq("current_version_id", currentVersion.id).is("deleted_at", null).single(),
       loadCompanySettings(admin),
       loadGoogleWorkspaceConnection(),
     ]);
     const senderEmail = workspace.workspaceAccount?.trim();
     if (!senderEmail) throw new Error("La cuenta remitente de Google Workspace no está identificada.");
     acceptedProviderAccount = senderEmail;
-    if (error || !quote) throw new Error("La cotización ya no está disponible.");
+    if (error || !quote) throw error ?? new Error("La cotización ya no está disponible.");
+    if (!["DRAFT", "NEGOTIATION", "SENT", "VIEWED"].includes(quote.status)) throw new Error("El estado de la cotización no permite este envío. Para una versión aceptada, utiliza el reenvío del original.");
     const pricingSnapshot = (quote.pricing_snapshot ?? {}) as Record<string, unknown>;
     const snapshot = (quote.commercial_snapshot ?? (Object.keys(pricingSnapshot).length ? pricingSnapshot.commercial ?? pricingSnapshot : {})) as Record<string, unknown>;
     const customer = (quote.customer_snapshot ?? {}) as Record<string, string>;
@@ -471,10 +452,24 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     const items = [...(quote.quotation_items ?? [])].sort((a, b) => Number(a.display_order) - Number(b.display_order));
     const configuredConditions = Array.isArray(company.pdfConfiguration.commercialReservationConditions) ? company.pdfConfiguration.commercialReservationConditions.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
     const breakdown = resolveCommercialBreakdown({ snapshot, items });
-    const pdf = await createFormalQuotePdf({ number: quote.quotation_number, issueDate: quote.issue_date, expirationDate: quote.expiration_date, customer, event, lines: items.map((item) => ({ description: item.description || item.label, itemType: item.item_type, quantity: Number(item.quantity), quotedPrice: Number(item.quoted_price ?? item.unit_price), total: Number(item.total) })), ...breakdown, paymentCondition: snapshot.paymentCondition === "CORPORATE_CREDIT" || snapshot.paymentCondition === "CASH" ? snapshot.paymentCondition : "FIFTY_FIFTY", paymentTermDays: Number(snapshot.paymentTermDays ?? 0), company: { legalName: company.legalName, taxId: company.taxId, address: company.address, city: company.city, phone: company.phone, email: config.email || company.salesEmail || company.supportEmail, website: company.website, bankName: config.bankName || "Banco no configurado", bankAccountType: config.accountType || "Cuenta no configurada", bankAccountNumber: config.accountNumber || "Número no configurado", importantNotice: typeof company.pdfConfiguration.commercialImportantNotice === "string" ? company.pdfConfiguration.commercialImportantNotice : undefined, reservationConditions: configuredConditions, operationalConditions: normalizeQuoteOperationalConditions(company.pdfConfiguration.commercialOperationalConditions) } });
-    const pdfPath = quoteStorageKey(quote.id, quote.quotation_number);
-    const upload = await admin.storage.from("orbit-documents").upload(pdfPath, pdf, { contentType: "application/pdf", upsert: true });
-    if (upload.error) throw upload.error;
+    stage = "QUOTE_SEND_PDF";
+    const storedPath = currentVersion.pdf_storage_path;
+    let pdf: Uint8Array;
+    if (storedPath) {
+      stage = "QUOTE_SEND_STORAGE";
+      const stored = await admin.storage.from("orbit-documents").download(storedPath);
+      if (stored.error) throw stored.error;
+      pdf = new Uint8Array(await stored.data.arrayBuffer());
+    } else {
+      pdf = await createFormalQuotePdf({ number: quote.quotation_number, issueDate: quote.issue_date, expirationDate: quote.expiration_date, customer, event, lines: items.map((item) => ({ description: item.description || item.label, itemType: item.item_type, quantity: Number(item.quantity), quotedPrice: Number(item.quoted_price ?? item.unit_price), total: Number(item.total) })), ...breakdown, paymentCondition: snapshot.paymentCondition === "CORPORATE_CREDIT" || snapshot.paymentCondition === "CASH" ? snapshot.paymentCondition : "FIFTY_FIFTY", paymentTermDays: Number(snapshot.paymentTermDays ?? 0), company: { legalName: company.legalName, taxId: company.taxId, address: company.address, city: company.city, phone: company.phone, email: config.email || company.salesEmail || company.supportEmail, website: company.website, bankName: config.bankName || "Banco no configurado", bankAccountType: config.accountType || "Cuenta no configurada", bankAccountNumber: config.accountNumber || "Número no configurado", importantNotice: typeof company.pdfConfiguration.commercialImportantNotice === "string" ? company.pdfConfiguration.commercialImportantNotice : undefined, reservationConditions: configuredConditions, operationalConditions: normalizeQuoteOperationalConditions(company.pdfConfiguration.commercialOperationalConditions) } });
+    }
+    const pdfPath = storedPath ?? quoteStorageKey(quote.id, quote.quotation_number).replace(/\.pdf$/, `-${input.requestId}_V${version}.pdf`);
+    if (!storedPath) {
+      stage = "QUOTE_SEND_STORAGE";
+      const upload = await admin.storage.from("orbit-documents").upload(pdfPath, pdf, { contentType: "application/pdf", upsert: false });
+      if (upload.error) throw upload.error;
+    }
+    stage = "QUOTE_SEND_SIGNED_URL";
     const pdfUrl = await admin.storage.from("orbit-documents").createSignedUrl(pdfPath, 60 * 60 * 24 * 7);
     if (pdfUrl.error) throw pdfUrl.error;
     let catalogUrl = "";
@@ -489,17 +484,15 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
     }
     const subject = normalizeEmailNewlines(input.subject || formalQuoteSubject(quote.quotation_number, customer.company || customer.contact)).replaceAll("\n", " ").trim();
     const body = normalizeEmailNewlines(input.body);
-    const { data: existingSend } = await admin.from("commercial_sends").select("status,external_message_id").eq("idempotency_key", input.requestId).maybeSingle();
-    if (isCommercialSendAccepted(existingSend?.status)) return { ok: true as const, message: "Este envío ya fue aceptado por Gmail." };
-    if (existingSend?.status === "PREPARING") return { ok: true as const, message: "Este envío ya está siendo procesado." };
-    const { data: claim, error: claimError } = await admin.from("commercial_sends").insert({ idempotency_key: input.requestId, recipient_email: recipients.to, cc_recipients: recipients.cc, category: "COMPANIES_QUOTE", quotation_id: quote.id, customer_id: quote.customer_id, project_id: quote.project_id, subject, body_snapshot: body, document_snapshot: { quote: quote.quotation_number, pdfPath, catalog: catalogSnapshot }, status: "PREPARING", sent_by: user.id, from_email: senderEmail, reply_to_email: typeof company.emailConfiguration.replyTo === "string" ? company.emailConfiguration.replyTo : senderEmail, mime_mode: "multipart/alternative", attempt_count: 0 }).select("id").single();
+    stage = "QUOTE_SEND_CLAIM";
+    const { data: claim, error: claimError } = await admin.from("commercial_sends").insert({ idempotency_key: input.requestId, recipient_email: recipients.to, cc_recipients: recipients.cc, category: "COMPANIES_QUOTE", quotation_id: quote.id, customer_id: quote.customer_id, project_id: quote.project_id, subject, body_snapshot: body, document_snapshot: { quote: quote.quotation_number, pdfPath, versionId: currentVersion.id, version, catalog: catalogSnapshot }, status: "PREPARING", sent_by: user.id, from_email: senderEmail, reply_to_email: typeof company.emailConfiguration.replyTo === "string" ? company.emailConfiguration.replyTo : senderEmail, mime_mode: "multipart/alternative", attempt_count: 0 }).select("id").single();
     if (claimError) {
       if (claimError.code === "23505") return { ok: true as const, message: "Este envío ya está siendo procesado." };
       throw claimError;
     }
     const signatureUrl = typeof company.emailConfiguration.signatureGifUrl === "string" ? company.emailConfiguration.signatureGifUrl : "";
     const signatureText = "Equipo BOOMBOX";
-    const signature = signatureUrl ? `<p><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;max-width:420px;width:100%;height:auto;border:0"></p>` : `<p>${signatureText}</p>`;
+    const signature = signatureUrl ? `<p><img src="${escapeHtml(signatureUrl)}" alt="BOOMBOX" style="display:block;width:auto;max-width:280px;height:auto;max-height:72px;border:0"></p>` : `<p>${signatureText}</p>`;
     const cleanBody = withoutDuplicateSignature(withoutDuplicateSignature(body, company.emailSignature || signatureText), signatureText);
     const htmlParagraphs = emailParagraphs(cleanBody).map((paragraph) => `<p style="margin:0 0 16px">${escapeHtml(paragraph).replaceAll("\n", "<br>")}</p>`).join("");
     const attachmentFilename = quoteDisplayFilename(quote.quotation_number);
@@ -519,15 +512,39 @@ export async function sendFormalQuoteAction(input: { quoteId: string; email: str
       attachmentNote: `${attachmentFilename} está incluido como archivo adjunto.`,
       signatureHtml: signature,
     });
+    stage = "QUOTE_SEND_GMAIL";
     acceptedMessage = await new GoogleGmailApiProvider(await loadGoogleWorkspaceAccessToken()).send({ to: recipients.to, cc: recipients.cc, from: senderEmail, replyTo: typeof company.emailConfiguration.replyTo === "string" && company.emailConfiguration.replyTo.trim() ? company.emailConfiguration.replyTo : senderEmail, subject, idempotencyKey: input.requestId, textBody: `${cleanBody}\n\nCotización: ${pdfUrl.data.signedUrl}${catalogUrl ? `\nCatálogo: ${catalogUrl}` : ""}\n\n${signatureUrl ? "" : signatureText}`.trim(), htmlBody, driveFileIds: [], attachments: [{ filename: attachmentFilename, mimeType: "application/pdf", content: new Uint8Array(pdf) }] });
     const timestamp = new Date().toISOString();
     const { error: sendError } = await admin.from("commercial_sends").update({ ...buildGmailAcceptancePatch(acceptedMessage, senderEmail, timestamp), sent_at: timestamp }).eq("id", claim.id);
     if (sendError) throw sendError;
-    const { error: quoteError } = await admin.from("quotations").update({ status: "SENT", pdf_storage_path: pdfPath, updated_by: user.id, updated_at: timestamp }).eq("id", quote.id).eq("status", "DRAFT");
-    if (quoteError) throw quoteError;
+    stage = "QUOTE_SEND_QUOTE_UPDATE";
+    if (["DRAFT", "NEGOTIATION"].includes(quote.status)) {
+      const { data: updated, error: quoteError } = await client.from("quotations")
+        .update({ status: "SENT", pdf_storage_path: pdfPath, updated_by: user.id, updated_at: timestamp })
+        .eq("id", quote.id).eq("current_version_id", currentVersion.id).eq("status", quote.status)
+        .eq("updated_at", quote.updated_at).select("id").maybeSingle();
+      if (quoteError || !updated) throw quoteError ?? new Error("La versión fue modificada mientras se registraba el envío.");
+    }
+    stage = "QUOTE_SEND_VERSION_UPDATE";
+    if (!storedPath) {
+      const { error: versionUpdateError } = await client.from("quote_versions")
+        .update({ status: quote.status === "VIEWED" ? "VIEWED" : "SENT", pdf_storage_path: pdfPath, sent_at: timestamp, sent_by: user.id })
+        .eq("id", currentVersion.id).eq("quote_id", quote.id).is("pdf_storage_path", null)
+        .in("status", ["DRAFT", "NEGOTIATION", "SENT", "VIEWED"]);
+      if (versionUpdateError) throw versionUpdateError;
+    }
     revalidatePath("/leads");
     return { ok: true as const, message: `${quote.quotation_number} enviada y registrada.` };
   } catch (error) {
+    const technical = error as { code?: string; message?: string; details?: string };
+    console.error("[ORBIT][QUOTE_SEND_FAILURE]", {
+      quoteId: input.quoteId,
+      requestId: input.requestId,
+      stage,
+      code: technical?.code ?? null,
+      message: technical?.message ?? null,
+      details: technical?.details ?? null,
+    });
     if (acceptedMessage) {
       await admin.from("commercial_sends").update(buildGmailAcceptancePatch(acceptedMessage, acceptedProviderAccount, new Date().toISOString(), true)).eq("idempotency_key", input.requestId);
     }
@@ -728,6 +745,13 @@ export async function confirmCommercialQuoteConversionAction(
             .map((item) => item.code),
         ),
       ),
+      serviceLines: items
+        .filter((item) => item.itemType !== "TRANSPORT")
+        .map((item) => ({
+          serviceCode: item.code,
+          quantity: item.quantity,
+          durationHours: Number(event.durationHours),
+        })),
       origin: "Other",
       notes: [
         `Reserva convertida desde ${review.number} · revisión ${review.version}.`,
@@ -796,27 +820,6 @@ export async function confirmCommercialQuoteConversionAction(
       if (snapshotWriteError) throw snapshotWriteError;
     } catch (snapshotError) {
       conversionWarning(warnings, "Ficha comercial del Evento", snapshotError);
-    }
-    try {
-      for (const item of items.filter(
-        (entry) => entry.itemType !== "TRANSPORT",
-      )) {
-        const { error: quantityError } = await client
-          .from("project_services")
-          .upsert(
-            {
-              project_id: projectId,
-              service_code: item.code,
-              quantity: item.quantity,
-              duration_hours: Number(event.durationHours),
-              extras: draft.event.extras ?? [],
-            },
-            { onConflict: "project_id,service_code" },
-          );
-        if (quantityError) throw quantityError;
-      }
-    } catch (serviceError) {
-      conversionWarning(warnings, "Servicios del Evento", serviceError);
     }
     const ocFile = formData.get("purchaseOrderFile");
     if (ocFile instanceof File && ocFile.size) {

@@ -354,7 +354,7 @@ export function buildCommercialQuoteDetail(
             quoteId: id,
             requestId: id,
             changeReason: "",
-            officialPrice: number(row.official_price, total),
+            officialPrice: status === "DRAFT" ? undefined : number(row.official_price ?? total, total),
             existingCustomerId: text(row.customer_id) || null,
             saveTemporaryCustomer: false,
             ...customer,
@@ -366,6 +366,12 @@ export function buildCommercialQuoteDetail(
             eventCity: text(event.city),
             validityDays: Math.max(1, number(row.validity_days, 10)),
             depositPercent,
+            ...(["CASH", "FIFTY_FIFTY", "CORPORATE_CREDIT"].includes(text(commercial.paymentCondition))
+              ? {
+                  paymentCondition: commercial.paymentCondition as FormalQuoteDraft["paymentCondition"],
+                  paymentTermDays: number(commercial.paymentTermDays),
+                }
+              : {}),
             globalDiscountType:
               row.global_discount_type === "CLP" ||
               row.global_discount_type === "PERCENT"

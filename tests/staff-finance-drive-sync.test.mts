@@ -19,7 +19,7 @@ test("staff finance Drive sync keeps the three canonical document chains separat
 });
 
 test("staff finance Drive sync uses deterministic staff/year/month folders", () => {
-  assert.match(service, /\["STAFF", "OPERADORES", staffName, "04_REEMBOLSOS", year, month/);
+  assert.match(service, /\["02_STAFF", "OPERADORES", staffName, "04_REEMBOLSOS", year, month/);
   assert.match(service, /05_COMPROBANTES_PAGO/);
   assert.match(service, /let parent: string \| undefined = rootId/);
   assert.match(service, /resolveRootFolderId/);

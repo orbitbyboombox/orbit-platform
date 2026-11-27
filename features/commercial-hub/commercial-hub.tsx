@@ -37,7 +37,7 @@ import type {
   QuoteLineDraft,
 } from "./types";
 import { calculateFormalQuote } from "./quote-calculation";
-import { QUICK_SEND_CTA_LABEL, commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, inlineCommercialText, moneyInputNumber, normalizeEmailNewlines, quickSendInitialBody, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
+import { QUICK_SEND_CTA_LABEL, commercialGreeting, displayChileanPhone, formalQuoteSubject, formatChileanRutInput, moneyInputNumber, normalizeEmailNewlines, quickSendInitialBody, quoteDisplayFilename, titleCasePerson, withoutDuplicateSignature } from "./presentation";
 import { ChileanMobileInput } from "@/components/forms/chilean-mobile-input";
 import { PdfViewer } from "./pdf-viewer";
 import { getCommercialDocumentUrlAction } from "./settings.actions";
@@ -178,7 +178,7 @@ export function CommercialHub({ data }: { data: CommercialHubData }) {
       ) : (
         <InformationSender category={view} data={data} key={view} />
       )}
-      <RecentQuotes quotes={data.recentQuotes} />
+      <RecentQuotes quotes={data.recentQuotes} pagination={data.quoteHistory} />
       <SendHistory sends={data.recentSends} />
     </main>
   );
@@ -219,12 +219,6 @@ function RichMessageEditor({ value, onChange }: { value: string; onChange: (valu
     role="textbox"
     suppressContentEditableWarning
   />;
-}
-
-function FormattedParagraph({ value }: { value: string }) {
-  return <p className="whitespace-pre-wrap">{inlineCommercialText(value).map((segment, index) => segment.strong
-    ? <strong className="font-semibold text-foreground" key={`${segment.text}-${index}`}>{segment.text}</strong>
-    : <span key={`${segment.text}-${index}`}>{segment.text}</span>)}</p>;
 }
 
 function InformationSender({
@@ -319,6 +313,7 @@ function InformationSender({
               className="h-[42rem] w-full bg-white sm:h-[52rem]"
               sandbox=""
               srcDoc={buildSocialPlansEmail({
+                category,
                 body: withoutDuplicateSignature(body, "Equipo BOOMBOX"),
                 contact: name,
                 website: data.company.website,
@@ -388,12 +383,13 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const [preview, setPreview] = useState(false);
   const [message, setMessage] = useState("");
   const [changeReason, setChangeReason] = useState(initialDraft?.changeReason ?? "");
+  const changeReasonRef = useRef<HTMLTextAreaElement>(null);
   const [requiresChangeReason, setRequiresChangeReason] = useState(false);
   const [pending, start] = useTransition();
   const [capacityResult, setCapacityResult] = useState<CapacityResult | null>(null);
   const [capacityLoading, setCapacityLoading] = useState(false);
   const capacityRequest = useRef(0);
-  const capacityServiceCodes = lines.map((line) => line.code).filter((code) => !code.startsWith("MANUAL-"));
+  const capacityServiceCodes = useMemo(() => lines.map((line) => line.code).filter((code) => !code.startsWith("MANUAL-")), [lines]);
   const capacityMissingInputs = !(eventDate && eventTime && eventLocation.trim() && eventCity.trim() && capacityServiceCodes.length);
   const capacityState = progressiveAvailabilityState({ date: eventDate, time: eventTime, location: eventLocation.trim() && eventCity.trim() ? eventLocation : "", service: capacityServiceCodes.length > 0, loading: capacityLoading, result: capacityResult?.status });
   useEffect(() => {
@@ -407,7 +403,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
     void draftCapacityPreflightAction({ serviceCodes: capacityServiceCodes, eventType: eventName || "", eventDate, serviceStart: startAt.toISOString(), serviceEnd: endAt.toISOString(), address: eventLocation, city: eventCity })
       .then((response) => { if (requestId === capacityRequest.current) setCapacityResult(response.ok ? (response.result as CapacityResult | null) : null); })
       .finally(() => { if (requestId === capacityRequest.current) setCapacityLoading(false); });
-  }, [capacityMissingInputs, eventDate, eventTime, eventLocation, eventCity, eventName, lines]);
+  }, [capacityMissingInputs, eventDate, eventTime, eventLocation, eventCity, eventName, capacityServiceCodes]);
   const selected = data.customers.find((item) => item.id === customerId);
   const visibleCustomers = data.customers
     .filter((item) => {
@@ -422,6 +418,10 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const addCatalog = (code: string) => {
     const item = data.catalog.find((row) => row.code === code);
     if (!item) return;
+    if (lines.some((line) => !line.manual && line.code === item.code)) {
+      setMessage("Ese servicio ya está agregado a la cotización. Ajusta la cantidad en la línea existente.");
+      return;
+    }
     setLines((current) => [
       ...current,
       {
@@ -476,6 +476,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
     if (saveInFlightRef.current) return;
     if (showChangeReason && !changeReason.trim()) {
       setMessage("Para modificar el precio de una cotización enviada, indica el motivo de negociación.");
+      changeReasonRef.current?.focus();
       return;
     }
     saveInFlightRef.current = true;
@@ -836,6 +837,8 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
               aria-label="Motivo de negociación"
               className="w-full min-h-24 rounded-xl border bg-background p-3"
               placeholder="Explica el motivo del cambio de precio…"
+              ref={changeReasonRef}
+              required={showChangeReason}
               value={changeReason}
               onChange={(event) => setChangeReason(event.target.value)}
             />
@@ -1039,21 +1042,37 @@ function QuotePreview({
 }
 function RecentQuotes({
   quotes,
+  pagination,
 }: {
   quotes: CommercialHubData["recentQuotes"];
+  pagination?: CommercialHubData["quoteHistory"];
 }) {
   const [openPdf, setOpenPdf] = useState<{ id: string; number: string } | null>(null);
-  const [expanded, setExpanded] = useState(false);
   const [review, setReview] = useState<QuoteConversionReview | null>(null);
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
-  const visibleQuotes = expanded ? quotes : quotes.slice(0, 5);
+  const [preparingQuoteId, setPreparingQuoteId] = useState<string | null>(null);
+  const { filter = "ALL", page = 1, hasNext = false } = pagination ?? {};
+  const pageHref = (number: number) => `/leads?${new URLSearchParams({ quoteFilter: filter, quotePage: String(number) })}#cotizaciones`;
   return (
-    <section className="rounded-2xl border bg-card p-5">
-      <h2 className="font-semibold">Cotizaciones recientes</h2>
+    <section className="rounded-2xl border bg-card p-5" id="cotizaciones">
+      <h2 className="font-semibold">Cotizaciones</h2>
+      <form action="/leads#cotizaciones" className="mt-3 flex flex-wrap gap-2" method="get">
+        <select aria-label="Filtrar cotizaciones" className="min-h-11 rounded-lg border bg-background px-3 text-sm" defaultValue={filter} key={filter} name="quoteFilter">
+          <option value="ALL">Todas</option>
+          <option value="SENT">Enviadas</option>
+          <option value="ACCEPTED">Aceptadas</option>
+          <option value="REJECTED">Rechazadas</option>
+          <option value="EXPIRED">Vencidas</option>
+          <option value="WITH_RESERVATION">Con reserva</option>
+          <option value="WITHOUT_RESERVATION">Sin reserva</option>
+          <option value="LEGACY">Sin cliente vinculado</option>
+        </select>
+        <Button type="submit" variant="outline">Filtrar</Button>
+      </form>
       <div className="mt-4 divide-y">
         {quotes.length ? (
-          visibleQuotes.map((q) => (
+          quotes.map((q) => (
             <div
               className="grid min-w-0 gap-2 py-3 text-sm lg:grid-cols-[minmax(0,1fr)_auto_auto_auto] lg:items-center lg:gap-4"
               key={q.id}
@@ -1063,19 +1082,54 @@ function RecentQuotes({
               <span className="text-muted">{quoteStatusLabel(q.status)} · {q.issuedAt.split("-").reverse().slice(0, 2).join(" ")}</span>
               <div className="flex min-w-0 flex-wrap gap-3 lg:justify-end">
                 <button className="min-h-11 font-medium text-brand" onClick={() => setOpenPdf({ id: q.id, number: q.number })}>PDF</button>
-                <Link className="inline-flex min-h-11 items-center font-medium text-brand" href={`/quotes/${q.id}`}>{q.draft ? "ABRIR / CONTINUAR" : "ABRIR"}</Link>
+                <Link className="inline-flex min-h-11 items-center font-medium text-brand" href={`/quotes/${q.id}`}>{q.status === "DRAFT" ? "ABRIR / CONTINUAR" : "ABRIR"}</Link>
                 <button className="min-h-11 font-medium text-brand" disabled={pending} onClick={() => { if (!window.confirm(`¿Usar ${q.number} como base? La original no cambiará.`)) return; startTransition(async () => { const result = await duplicateCommercialQuoteAction({ quoteId: q.id, requestId: crypto.randomUUID() }); setMessage(result.ok ? `Nueva cotización ${result.number} creada.` : result.error); if (result.ok) window.location.assign(`/quotes/${result.id}`); }); }}>DUPLICAR</button>
                 {["SENT","VIEWED"].includes(q.status) ? <button className="min-h-11 font-semibold text-brand" disabled={pending} onClick={() => { if(!window.confirm(`¿Confirmar que ${q.number} fue aceptada por el cliente?`))return; startTransition(async()=>{const result=await acceptCommercialQuoteAction(q.id);setMessage(result.ok?result.message:result.error);if(result.ok)window.location.reload()})}}>MARCAR COMO ACEPTADA</button>:null}
-                {q.status==="ACCEPTED" ? <button className="min-h-11 font-semibold text-brand" disabled={pending} onClick={()=>startTransition(async()=>{const result=await loadCommercialQuoteConversionReviewAction(q.id);if(!result.ok){setMessage(result.error);return}if(result.converted){window.location.assign(`/projects/${result.projectId}`);return}setReview(result.review)})}>GENERAR RESERVA DESDE COTIZACIÓN</button>:null}
+                {q.status === "ACCEPTED" ? (
+                  <Button
+                    className="min-h-11 px-0 text-brand hover:bg-transparent"
+                    disabled={pending}
+                    loading={pending && preparingQuoteId === q.id}
+                    loadingLabel="PREPARANDO RESERVA…"
+                    onClick={() => {
+                      setPreparingQuoteId(q.id);
+                      startTransition(async () => {
+                        try {
+                          const result = await loadCommercialQuoteConversionReviewAction(q.id);
+                          if (!result.ok) {
+                            setMessage(result.error);
+                            return;
+                          }
+                          if (result.converted) {
+                            window.location.assign(`/projects/${result.projectId}`);
+                            return;
+                          }
+                          setReview(result.review);
+                        } finally {
+                          setPreparingQuoteId(null);
+                        }
+                      });
+                    }}
+                    variant="ghost"
+                  >
+                    GENERAR RESERVA DESDE COTIZACIÓN
+                  </Button>
+                ) : null}
                 {q.status==="CONVERTED" ? <><span className="inline-flex min-h-11 items-center font-semibold text-success">RESERVA YA GENERADA</span>{q.projectId?<Link className="inline-flex min-h-11 items-center font-semibold text-brand" href={`/projects/${q.projectId}`}>VER EVENTO</Link>:null}</>:null}
               </div>
             </div>
           ))
         ) : (
-          <p className="py-5 text-sm text-muted">Aún no hay cotizaciones.</p>
+          <p className="py-5 text-sm text-muted">No hay cotizaciones para este filtro.</p>
         )}
       </div>
-      {quotes.length > 5 && <button className="mt-3 text-sm font-semibold text-brand" onClick={() => setExpanded((value) => !value)}>{expanded ? "Ver menos" : "Ver todas"}</button>}
+      {(page > 1 || hasNext) && (
+        <nav aria-label="Páginas de cotizaciones" className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+          {page > 1 && <Button asChild variant="outline"><Link href={pageHref(page - 1)}>Anterior</Link></Button>}
+          <span>Página {page}</span>
+          {hasNext && <Button asChild variant="outline"><Link href={pageHref(page + 1)}>Siguiente</Link></Button>}
+        </nav>
+      )}
       {message?<p aria-live="polite" className="mt-3 text-sm font-medium">{message}</p>:null}
       {openPdf && <PdfViewer title={quoteDisplayFilename(openPdf.number)} src={`/api/commercial/quotes/${openPdf.id}/pdf`} onClose={() => setOpenPdf(null)} />}
       {review?<QuoteConversionReviewDialog review={review} onClose={()=>setReview(null)}/>:null}

@@ -12,6 +12,7 @@ import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
+import { resumeManualReservationAction } from "@/features/projects/actions/customer.actions";
 import {
   acceptCommercialQuoteAction,
   duplicateCommercialQuoteAction,
@@ -49,7 +50,7 @@ export function CommercialQuoteDetailExperience({
   const [message, setMessage] = useState("");
   const [pending, startTransition] = useTransition();
   const duplicateRequestId = useRef<string | null>(null);
-  const actions = quoteDetailActions(quote.status, quote.projectId);
+  const actions = quoteDetailActions(quote.status, quote.projectId, quote.conversion);
 
   if (editing && quote.draft && hubData) {
     return (
@@ -92,6 +93,20 @@ export function CommercialQuoteDetailExperience({
         return;
       }
       setReview(result.review);
+    });
+  };
+
+  const resumeConversion = () => {
+    if (quote.status === "ACCEPTED") {
+      openConversion();
+      return;
+    }
+    const transactionId = quote.conversion?.transactionId;
+    if (!transactionId) return;
+    startTransition(async () => {
+      const result = await resumeManualReservationAction(transactionId);
+      setMessage(result.ok ? "Se verificó el estado de la configuración de la reserva." : result.error);
+      if (result.ok) router.refresh();
     });
   };
 
@@ -157,13 +172,9 @@ export function CommercialQuoteDetailExperience({
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
             <Button asChild variant="outline">
-              <a
-                href={`/api/commercial/quotes/${quote.id}/pdf`}
-                rel="noreferrer"
-                target="_blank"
-              >
+              <Link href={`/quotes/${quote.id}/pdf`}>
                 <FileText /> VER PDF
-              </a>
+              </Link>
             </Button>
             {actions.canEdit && quote.draft && hubData ? (
               <Button onClick={() => setEditing(true)}>
@@ -190,6 +201,23 @@ export function CommercialQuoteDetailExperience({
                   ? "PREPARANDO…"
                   : "GENERAR RESERVA DESDE COTIZACIÓN"}
               </Button>
+            ) : null}
+            {actions.conversionIncomplete ? (
+              <>
+                <span className="inline-flex min-h-11 items-center font-semibold text-muted">
+                  RESERVA CREADA · CONFIGURACIÓN PENDIENTE
+                </span>
+                {actions.canResume ? (
+                  <Button disabled={pending} onClick={resumeConversion}>
+                    {pending ? "VERIFICANDO…" : "REANUDAR CONVERSIÓN"}
+                  </Button>
+                ) : null}
+                <Button asChild variant="outline">
+                  <Link href={`/projects/${quote.projectId}`}>
+                    VER EVENTO <ExternalLink />
+                  </Link>
+                </Button>
+              </>
             ) : null}
             {actions.isConverted ? (
               <>

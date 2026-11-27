@@ -17,9 +17,10 @@ test("commercial renderer uses the verified official BOOMBOX image and keeps bot
   }).html;
   assert.match(rendered, new RegExp(OFFICIAL_BOOMBOX_LOGO_URL.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.match(rendered, /alt="BOOMBOX®"/);
-  assert.match(rendered, />VER PLANES Y VALORES</);
+  assert.match(rendered, /href="https:\/\/orbit\.boom-box\.cl\/catalogo\/novios\/document"[^>]*>VER COTIZACIÓN PDF</);
   assert.match(rendered, />CONOCER VALOR DE TRASLADO</);
-  assert.doesNotMatch(rendered, /boombox-official-logo\.png/);
+  assert.equal((rendered.match(/boombox-official-logo\.png/g) ?? []).length, 1);
+  assert.match(rendered, /href="https:\/\/app\.bbox\.cl\/traslados\?type=private"/);
 });
 
 test("category-specific commercial copy remains selective and does not change delivery controls", () => {

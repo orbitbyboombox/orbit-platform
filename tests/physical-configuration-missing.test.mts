@@ -25,11 +25,14 @@ test("projects a compact agenda list with canonical workspace CTA", () => {
   assert.match(agenda, /physical-resource-planning/);
   assert.match(agenda, /slice\(0,5\)/);
 });
-test("exposes the alert in Founder action center", () => {
-  assert.match(founder, /"PHYSICAL_CONFIGURATION_MISSING"/);
-  assert.match(founder, /DEFINIR CONFIGURACIÓN/);
-  assert.match(founder, /eventos sin configuración física/);
+test("operational readiness remains in its owning agenda while reconciliation continues", () => {
+  // 94accd6a routes missing physical configuration away from the Founder queue.
+  const founderTypes = founder.slice(founder.indexOf("const canonicalFounderActionTypeList"), founder.indexOf("const canonicalFounderActionTypes"));
+  assert.doesNotMatch(founderTypes, /"PHYSICAL_CONFIGURATION_MISSING"/);
   assert.match(founder, /reconcile_operational_agenda_alerts/);
+  assert.match(agenda, /Sin configuración física:/);
+  assert.match(agenda, /Definir configuración/);
+  assert.match(agenda, /physical-resource-planning/);
 });
 
 test("manual quote does not couple shell selection to CLASSIC", () => {

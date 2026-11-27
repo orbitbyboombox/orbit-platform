@@ -16,7 +16,7 @@ test("staff boleta admin action calls the canonical RPC and reads back success",
 });
 
 test("sent quote price changes require and persist negotiation reason", () => {
-  assert.match(quoteUi, /required=\{negotiatedPostSend\}/);
+  assert.match(quoteUi, /required=\{showChangeReason\}/);
   assert.match(quoteUi, /changeReason/);
   assert.match(quoteMigration, /negotiation_reason=case when q\.status<>'DRAFT'/);
   assert.match(quoteMigration, /change_reason=reason_value/);

@@ -23,15 +23,15 @@ test("legacy guard owns one observer and one shared release",()=>{assert.equal((
 test("legacy guard blocks every real aria modal outside canonical surfaces",()=>assert.match(guard,/querySelectorAll<HTMLElement>\('\[aria-modal="true"\]'\)/));
 test("MobileDialog uses shared lock",()=>assert.match(dialog,/acquireModalScrollLock\(\)/));
 test("MobileDialog uses body portal",()=>assert.match(dialog,/createPortal\([\s\S]*document\.body/));
-test("long dialogs use one canonical fullscreen mobile variant",()=>{assert.match(dialog,/variant\?:"default"\|"fullscreen-mobile"/);assert.match(dialog,/h-\[100dvh\][\s\S]*lg:h-auto/);for(const source of [cash,expense,customer,staff])assert.match(source,/variant="fullscreen-mobile"/)});
-test("fullscreen header and close control remain outside the scroll main",()=>{assert.match(dialog,/data-orbit-modal-header[\s\S]*data-orbit-modal-close[\s\S]*<\/header><main[\s\S]*data-orbit-modal-scroll/);assert.match(dialog,/pt-\[max\(1rem,env\(safe-area-inset-top\)\)\]/)});
+test("long dialogs use one canonical fullscreen mobile variant",()=>{assert.match(dialog,/variant\?\s*:\s*"default"\s*\|\s*"fullscreen-mobile"/);assert.match(dialog,/h-\[100dvh\][\s\S]*lg:h-auto/);for(const source of [cash,expense,customer,staff])assert.match(source,/variant="fullscreen-mobile"/)});
+test("fullscreen header and close control remain outside the scroll main",()=>{assert.match(dialog,/data-orbit-modal-header[\s\S]*data-orbit-modal-close[\s\S]*<\/header>\s*<main[\s\S]*data-orbit-modal-scroll/);assert.match(dialog,/pt-\[max\(1rem,env\(safe-area-inset-top\)\)\]/)});
 test("modal content supports native vertical touch",()=>{assert.match(dialog,/touch-pan-y/);assert.match(dialog,/-webkit-overflow-scrolling:touch/)});
 test("upper and lower overscroll stay contained",()=>assert.match(dialog,/overscroll-y-contain/));
-test("modal owns one internal scroll viewport with valid flex geometry",()=>{assert.match(dialog,/fullscreen\?"h-\[100dvh\][\s\S]*lg:h-auto/);assert.match(dialog,/min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto/);assert.equal((dialog.match(/overflow-y-auto/g)??[]).length,1)});
+test("modal owns one internal scroll viewport with valid flex geometry",()=>{assert.match(dialog,/fullscreen\s*\?\s*"h-\[100dvh\][\s\S]*lg:h-auto/);assert.match(dialog,/min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto/);assert.equal((dialog.match(/overflow-y-auto/g)??[]).length,1)});
 test("background lock does not intercept touch, pointer or wheel events",()=>{assert.doesNotMatch(lock,/touchstart|touchmove|pointermove|wheel|preventDefault/);assert.doesNotMatch(guard,/touchstart|touchmove|pointermove|wheel|preventDefault/)});
 test("background pointer interaction is intercepted by overlay",()=>assert.match(dialog,/data-orbit-modal-overlay[\s\S]*onMouseDown/));
-test("Escape closes through canonical handler",()=>assert.match(dialog,/event\.key==="Escape"/));
-test("focus trap remains active",()=>assert.match(dialog,/event\.key!=="Tab"/));
+test("Escape closes through canonical handler",()=>assert.match(dialog,/event\.key\s*===\s*"Escape"/));
+test("focus trap remains active",()=>assert.match(dialog,/event\.key\s*!==\s*"Tab"/));
 test("cash commitments use fullscreen MobileDialog",()=>{assert.match(cash,/MobileDialog eyebrow="Detalle de transacciones"[\s\S]*variant="fullscreen-mobile"/);assert.match(cash,/open\("Compromisos de caja"/);assert.doesNotMatch(cash,/detail&&<div className="fixed inset-0/)});
 test("Expense Center uses fullscreen MobileDialog",()=>{assert.match(expense,/MobileDialog eyebrow="Centro de Gastos"[\s\S]*variant="fullscreen-mobile"/);assert.doesNotMatch(expense,/fixed inset-x-0 bottom-0/)});
 test("global search mobile portal remains intact",()=>assert.match(search,/createPortal\(/));
@@ -41,4 +41,4 @@ test("reservation wizard backdrop and safe layout remain intact",()=>{assert.mat
 test("quick expense action remains canonical",()=>assert.match(quick,/\/finance\/expenses\?create=1/));
 for(const viewport of ["320x800","390x844","430x932","1366x768","1440x900"])test(`${viewport} uses dynamic viewport modal surface`,()=>assert.match(dialog,/100dvh/));
 test("desktop wheel targets the internal overflow container",()=>assert.match(dialog,/overflow-y-auto/));
-test("overlay and Escape cleanup both restore scroll through effect cleanup",()=>{assert.match(dialog,/return\(\)=>\{document\.removeEventListener\("keydown",onKeyDown\);releaseLock\(\)\}/);assert.match(dialog,/dismissOnOverlayClick&&event\.target===event\.currentTarget\)onClose\(\)/)});
+test("overlay and Escape cleanup both restore scroll through effect cleanup",()=>{assert.match(dialog,/return\s*\(\)\s*=>\s*\{\s*document\.removeEventListener\("keydown",\s*onKeyDown\);\s*releaseLock\(\);?\s*\}/);assert.match(dialog,/dismissOnOverlayClick\s*&&\s*event\.target\s*===\s*event\.currentTarget\)\s*onClose\(\)/)});

@@ -149,18 +149,15 @@ export function FounderWorkspaceExperience({
   financialAlertHistory,
   founderName,
   founderActions,
-  operationalAlerts,
   pendingStaffApprovals,
   pendingTasks,
   publicationConsole,
   recentActivity,
   todayEvents,
-  todayOperation,
   upcomingEvents,
   whatsappSummary,
   biancaStatus,
   whatsappConnected,
-  d10Dashboard,
 }: {
   currentDate: string;
   finance: FinanceDashboardReadModel;
@@ -899,43 +896,6 @@ export function FounderWorkspaceExperience({
       </Link>
     </section>
   );
-  const whatsapp = whatsappSummary ? (
-    <section
-      aria-labelledby="founder-whatsapp-summary"
-      className="rounded-2xl border bg-card px-4 py-3"
-    >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
-        <strong id="founder-whatsapp-summary" className="text-sm">
-          WhatsApp
-        </strong>
-        <span>
-          Activas: <b>{whatsappSummary.active}</b>
-        </span>
-        <span>
-          BIANCA: <b>{whatsappSummary.nova}</b>
-        </span>
-        <span>
-          Control humano: <b>{whatsappSummary.human}</b>
-        </span>
-        <span>
-          Esperando BOOMBOX: <b>{whatsappSummary.waitingBoombox}</b>
-        </span>
-        <span>
-          No leídas: <b>{whatsappSummary.unread}</b>
-        </span>
-        <span className="rounded-full border px-2 py-0.5 font-semibold">
-          Delivery: OFF
-        </span>
-        <Link
-          className="ml-auto font-semibold text-brand hover:underline"
-          href="/bianca"
-        >
-          Ver conversaciones →
-        </Link>
-      </div>
-    </section>
-  ) : null;
-
   const financialAlerts =
     financialAlert || financialAlertHistory.length ? (
       <FinancialAlertCenter

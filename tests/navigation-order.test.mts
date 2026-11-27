@@ -9,6 +9,7 @@ const expected = [
   "EVENTS",
   "CUSTOMERS",
   "STAFF",
+  "STAFF_TRAINING",
   "RESOURCES",
   "BOXES",
   "FINANCE",

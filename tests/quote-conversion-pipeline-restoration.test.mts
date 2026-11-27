@@ -19,7 +19,7 @@ const snapshot = {
   quotation: { number: "QA-1", version: 1, acceptedAt: "2026-09-01T00:00:00Z" },
   customer: { company: "QA", email: "qa@example.com" },
   commercial: {
-    event: { name: "QA", date: "2026-12-01", time: "20:00", location: "QA", city: "Santiago", durationHours: 3 },
+    event: { name: "QA", date: "2026-12-01", time: "20:00", location: "QA", address: "Calle QA 100", city: "Santiago", durationHours: 3 },
     paymentCondition: "FIFTY_FIFTY",
   },
   items: [{ id: "service", itemType: "SERVICE", code: "CLASSIC", label: "Classic", quantity: 2, total: 580000 }],
@@ -41,9 +41,10 @@ test("review explains that resource capacity, not shell colour, gates conversion
 
 test("accepted quote uses one canonical orchestrator and preserves quantities before it", () => {
   assert.match(actions, /serviceLines:/);
-  assert.match(actions, /resumeQuotationConversion/);
+  assert.match(actions, /prepare_commercial_quote_conversion/);
+  assert.match(actions, /reservationTransactionId: claim\.transactionId/);
   assert.match(actions, /createCustomerProjectAction\(draft\)/);
-  assert.match(actions, /confirmPersistedReservation/);
+  assert.match(customerActions, /confirmPersistedReservation/);
 });
 
 test("canonical orchestrator contains reservation, portal, Calendar and Drive stages", () => {
@@ -70,7 +71,7 @@ test("secondary integration failures stay retryable instead of marking the saga 
 
 test("recovery is idempotent and resumes existing transaction/project", () => {
   assert.match(actions, /reservation_transactions/);
-  assert.match(actions, /onConflict: "project_id,service_code"/);
-  assert.match(actions, /transaction\.status === "COMPLETED"/);
-  assert.match(actions, /completedStages: completed/);
+  assert.match(customerActions, /onConflict: "project_id,service_code"/);
+  assert.match(customerActions, /transaction\.status === "COMPLETED"/);
+  assert.match(customerActions, /completedStages: completedConfirmationStages/);
 });

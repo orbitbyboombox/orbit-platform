@@ -27,20 +27,20 @@ test("expense alerts open the global Staff review queue", () => {
 test("Founder and Staff surfaces expose the required operational access", () => {
   assert.match(financialActions, /INGRESAR PAGO POR ADELANTADO/);
   assert.match(financialActions, /GASTOS PENDIENTES/);
-  assert.match(dashboard, /Pendientes por revisar/);
+  assert.match(dashboard, /Pendientes de Staff/);
   assert.match(dashboard, /<details/);
 });
 
 test("advance form filters canonical events by collaborator and pending balance", () => {
-  assert.match(financialActions, /events\.filter\(\(event\) => event\.staffId === staffId/);
+  assert.match(financialActions, /if \(event\.staffId !== staffId\) continue/);
   assert.match(financialActions, /event\.payrollNet - event\.payrollPaidAmount/);
-  for (const field of ["settlementId", "amount", "date", "method", "notes", "receipt", "boleta"]) {
+  for (const field of ["projectId", "staffId", "allocations", "amount", "date", "method", "notes", "receipt", "boleta"]) {
     assert.match(financialActions, new RegExp(`name=\\"${field}\\"`));
   }
 });
 
 test("advance remains a single idempotent canonical settlement mutation", () => {
-  assert.match(advanceAction, /register_staff_advance_with_documents/);
+  assert.match(advanceAction, /register_staff_grouped_advance_with_documents/);
   assert.match(advanceAction, /idempotencyKey/);
   assert.match(advanceAction, /result\.idempotent/);
   assert.doesNotMatch(financialActions, /staff_payment_months|legacy/i);
