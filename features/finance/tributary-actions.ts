@@ -65,13 +65,11 @@ export async function createTributaryDraftAction(input: { projectId: string; dte
     const relationCustomer = Array.isArray((project as any).customers) ? (project as any).customers[0] : (project as any).customers;
     const customerSnapshot = relationCustomer ? { name: relationCustomer.full_name, company: relationCustomer.company, rut: relationCustomer.rut, address: relationCustomer.address, city: relationCustomer.city, email: relationCustomer.email, giro: relationCustomer.metadata?.giro ?? null } : null;
     const key = `PRE-SII|${input.dteType}|${input.projectId}|${quote?.id ?? "none"}`;
-    const { data: existing } = await admin.from("invoices").select("id,status,invoice_number").eq("tributary_draft_key", key).is("deleted_at", null).maybeSingle();
+    const { data: existing } = await admin.from("tributary_simulations").select("id,status,invoice_number").eq("tributary_draft_key", key).is("deleted_at", null).maybeSingle();
     if (existing) return { ok: true as const, id: existing.id, duplicate: true, status: existing.status };
-    const { data: row, error: insertError } = await admin.from("invoices").insert({
+    const { data: row, error: insertError } = await admin.from("tributary_simulations").insert({
       invoice_number: `PRE-SII-${input.dteType}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`,
-      customer_id: project.customer_id, project_id: project.id, orbit_event_id: project.orbit_event_id,
-      customer_type: String(project.project_type).toLowerCase().includes("corporate") ? "CORPORATE" : "PRIVATE", status: "DRAFT", payment_term: "CASH", currency: "CLP",
-      amount, paid_amount: 0, version: 1, financial_record_state: "ACTIVE", record_origin: "PRE_SII",
+      project_id: project.id, amount, status: "DRAFT", record_origin: "PRE_SII",
       tributary_document_type: input.dteType, tributary_draft_key: key,
       tributary_snapshot: {
         source: "ORBIT", mode: "SIMULATION", dteType: input.dteType, projectId: input.projectId,
@@ -98,7 +96,7 @@ export async function updateTributaryDraftAction(input: {
 }) {
   try {
     const { admin, actorId } = await requireAdmin();
-    const { data: draft } = await admin.from("invoices").select("id,status,tributary_snapshot,updated_at").eq("id", input.draftId).eq("record_origin", "PRE_SII").is("deleted_at", null).single();
+    const { data: draft } = await admin.from("tributary_simulations").select("id,status,tributary_snapshot,updated_at").eq("id", input.draftId).eq("record_origin", "PRE_SII").is("deleted_at", null).single();
     if (!draft || draft.status !== "DRAFT" || draft.updated_at !== input.revision) throw new Error("El borrador cambió. Recarga antes de editar.");
     if (!Array.isArray(input.lines) || !input.lines.length || input.lines.length > 14) throw new Error("Agrega entre 1 y 14 líneas para la plantilla actual.");
     const { lines, totals } = calculateTributaryDraft(input.lines, input.globalDiscount);
@@ -107,7 +105,7 @@ export async function updateTributaryDraftAction(input: {
       customer: { ...draft.tributary_snapshot?.customer, ...input.customer },
       reference: input.reference ?? null, dispatch: input.dispatch ?? null, notes: input.notes ?? "",
     };
-    const { data: saved, error } = await admin.from("invoices").update({ amount: totals.total, notes: input.notes ?? null, tributary_snapshot, updated_by: actorId })
+    const { data: saved, error } = await admin.from("tributary_simulations").update({ amount: totals.total, notes: input.notes ?? null, tributary_snapshot, updated_by: actorId, updated_at: new Date().toISOString() })
       .eq("id", draft.id).eq("record_origin", "PRE_SII").eq("status", "DRAFT").eq("updated_at", input.revision).is("deleted_at", null).select("id").maybeSingle();
     if (error) throw error;
     if (!saved) throw new Error("El borrador cambió mientras se guardaba.");
@@ -121,7 +119,7 @@ export async function updateTributaryDraftAction(input: {
 export async function approveTributaryDraftAction(input: { draftId: string; reason?: string }) {
   try {
     const { admin, actorId } = await requireAdmin();
-    const { data: draft } = await admin.from("invoices").select("id,status,amount,tributary_document_type,tributary_snapshot,updated_at").eq("id", input.draftId).eq("record_origin", "PRE_SII").is("deleted_at", null).single();
+    const { data: draft } = await admin.from("tributary_simulations").select("id,status,amount,tributary_document_type,tributary_snapshot,updated_at").eq("id", input.draftId).eq("record_origin", "PRE_SII").is("deleted_at", null).single();
     if (!draft || draft.status !== "DRAFT") throw new Error("Sólo se pueden aprobar borradores en estado DRAFT.");
     const snapshot = draft.tributary_snapshot;
     const customer = snapshot?.customer;
@@ -156,7 +154,7 @@ export async function approveTributaryDraftAction(input: { draftId: string; reas
       || totals.total !== Number(draft.amount)) missing.push("Montos conciliados");
     if (missing.length) throw new Error("Completa antes de aprobar: " + missing.join(", ") + ".");
 
-    const { data: approved, error } = await admin.from("invoices").update({ status: "PENDING", approved_by: actorId, approved_at: new Date().toISOString(), approval_reason: input.reason ?? "Aprobación interna PRE-SII", updated_by: actorId }).eq("id", input.draftId).eq("record_origin", "PRE_SII").eq("status", "DRAFT").eq("updated_at", draft.updated_at).is("deleted_at", null).select("id").maybeSingle();
+    const { data: approved, error } = await admin.from("tributary_simulations").update({ status: "PENDING", approved_by: actorId, approved_at: new Date().toISOString(), approval_reason: input.reason ?? "Aprobación interna PRE-SII", updated_by: actorId }).eq("id", input.draftId).eq("record_origin", "PRE_SII").eq("status", "DRAFT").eq("updated_at", draft.updated_at).is("deleted_at", null).select("id").maybeSingle();
     if (error) throw error;
     if (!approved) throw new Error("El borrador cambió durante la aprobación. Vuelve a cargarlo.");
     revalidatePath("/finance/tributary");
