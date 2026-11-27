@@ -110,7 +110,19 @@ jobs:
               if end >= 0: path.write_text(source[:start] + '-- isolated runner omits production-only assertion\n' + source[end + 1:])
           PY
           supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,supavisor
-          supabase db reset --local --no-seed
+      - name: Apply repository migrations with PostgreSQL psql
+        shell: bash
+        run: |
+          set -euo pipefail
+          db_container="$(docker ps --filter 'name=supabase_db_' --format '{{.Names}}' | head -n 1)"
+          test -n "$db_container"
+          while IFS= read -r migration; do
+            echo "Applying isolated migration: $migration"
+            if ! docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "$migration"; then
+              echo "::error::Isolated PostgreSQL migration failed: $migration"
+              exit 1
+            fi
+          done < <(find supabase/migrations -maxdepth 1 -type f -name '*.sql' -print | sort)
       - name: Validate canonical update RPC, grants and idempotency contract
         shell: bash
         run: |
