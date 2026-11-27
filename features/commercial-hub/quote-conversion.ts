@@ -38,6 +38,7 @@ export type QuoteConversionReview = {
     date: string;
     time: string;
     location: string;
+    address: string;
     city: string;
     durationHours: number | null;
   };
@@ -182,6 +183,7 @@ export function buildQuoteConversionReview(input: {
       date: text(event.date),
       time: text(event.time).slice(0, 5),
       location: text(event.location),
+      address: text(event.address),
       city: text(event.city),
       durationHours,
     },
@@ -219,7 +221,8 @@ export function missingQuoteConversionFields(review: QuoteConversionReview) {
   if (!review.event.name) missing.push("Evento / proyecto");
   if (!review.event.date) missing.push("Fecha del evento");
   if (!review.event.time) missing.push("Hora de inicio");
-  if (!review.event.location) missing.push("Lugar / dirección");
+  if (!review.event.location) missing.push("Lugar o recinto");
+  if (!review.event.address) missing.push("Dirección del evento");
   if (!review.event.city) missing.push("Comuna / ciudad");
   if (!review.event.durationHours) missing.push("Duración");
   if (!review.items.length) missing.push("Servicios / productos");
@@ -251,7 +254,8 @@ export function resolveQuoteConversionEvent(
     name: review.event.name || text(overrides.name),
     date: review.event.date || text(overrides.date),
     time: review.event.time || text(overrides.time).slice(0, 5),
-    location: review.event.location || text(overrides.location),
+    location: review.event.address ? review.event.location || text(overrides.location) : text(overrides.location ?? review.event.location),
+    address: review.event.address || text(overrides.address),
     city: review.event.city || text(overrides.city),
     durationHours:
       review.event.durationHours ||

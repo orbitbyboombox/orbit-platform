@@ -379,6 +379,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const [eventDate, setEventDate] = useState(initialDraft?.eventDate ?? "");
   const [eventTime, setEventTime] = useState(initialDraft?.eventTime ?? "");
   const [eventLocation, setEventLocation] = useState(initialDraft?.eventLocation ?? "");
+  const [eventAddress, setEventAddress] = useState(initialDraft?.eventAddress ?? "");
   const [eventCity, setEventCity] = useState(initialDraft?.eventCity ?? "");
   const [attachCatalog, setAttachCatalog] = useState(initialDraft?.attachCatalog ?? false);
   const [createdQuote, setCreatedQuote] = useState<{ id: string; number: string; total: number } | null>(null);
@@ -391,8 +392,8 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
   const [capacityLoading, setCapacityLoading] = useState(false);
   const capacityRequest = useRef(0);
   const capacityServiceCodes = lines.map((line) => line.code).filter((code) => !code.startsWith("MANUAL-"));
-  const capacityMissingInputs = !(eventDate && eventTime && eventLocation.trim() && eventCity.trim() && capacityServiceCodes.length);
-  const capacityState = progressiveAvailabilityState({ date: eventDate, time: eventTime, location: eventLocation.trim() && eventCity.trim() ? eventLocation : "", service: capacityServiceCodes.length > 0, loading: capacityLoading, result: capacityResult?.status });
+  const capacityMissingInputs = !(eventDate && eventTime && eventAddress.trim() && eventCity.trim() && capacityServiceCodes.length);
+  const capacityState = progressiveAvailabilityState({ date: eventDate, time: eventTime, location: eventAddress.trim() && eventCity.trim() ? eventAddress : "", service: capacityServiceCodes.length > 0, loading: capacityLoading, result: capacityResult?.status });
   useEffect(() => {
     const requestId = ++capacityRequest.current;
     setCapacityResult(null);
@@ -401,10 +402,10 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
     const endAt = new Date(startAt.getTime() + 2 * 60 * 60 * 1000);
     if (Number.isNaN(startAt.getTime())) { setCapacityLoading(false); return; }
     setCapacityLoading(true);
-    void draftCapacityPreflightAction({ serviceCodes: capacityServiceCodes, eventType: eventName || "", eventDate, serviceStart: startAt.toISOString(), serviceEnd: endAt.toISOString(), address: eventLocation, city: eventCity })
+    void draftCapacityPreflightAction({ serviceCodes: capacityServiceCodes, eventType: eventName || "", eventDate, serviceStart: startAt.toISOString(), serviceEnd: endAt.toISOString(), address: eventAddress, city: eventCity })
       .then((response) => { if (requestId === capacityRequest.current) setCapacityResult(response.ok ? (response.result as CapacityResult | null) : null); })
       .finally(() => { if (requestId === capacityRequest.current) setCapacityLoading(false); });
-  }, [capacityMissingInputs, eventDate, eventTime, eventLocation, eventCity, eventName, lines]);
+  }, [capacityMissingInputs, eventDate, eventTime, eventAddress, eventCity, eventName, lines]);
   const selected = data.customers.find((item) => item.id === customerId);
   const visibleCustomers = data.customers
     .filter((item) => {
@@ -500,6 +501,7 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
           eventDate,
           eventTime,
           eventLocation,
+          eventAddress,
           eventCity,
           validityDays,
           depositPercent,
@@ -651,8 +653,9 @@ export function FormalBuilder({ data, initialDraft }: { data: CommercialHubData;
             <input type="date" value={eventDate} onChange={(e) => setEventDate(e.target.value)} />
           </Field>
           <Field label="Hora del evento (opcional)"><input type="time" value={eventTime} onChange={(e) => setEventTime(e.target.value)} /></Field>
-          <Field label="Dirección del evento (opcional)"><input value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} /></Field>
-          <Field label="Comuna / Ciudad (opcional)"><input value={eventCity} onChange={(e) => setEventCity(e.target.value)} /></Field>
+          <Field label="Lugar o recinto (opcional)"><input placeholder="Nombre comercial del recinto" value={eventLocation} onChange={(e) => setEventLocation(e.target.value)} /></Field>
+          <Field label="Dirección del evento (opcional)"><input placeholder="Calle y número" value={eventAddress} onChange={(e) => setEventAddress(e.target.value)} /></Field>
+          <Field label="Comuna (opcional)"><input value={eventCity} onChange={(e) => setEventCity(e.target.value)} /></Field>
         </div>
         <div className="mt-5" data-capacity-section>
           <CapacityStatusPanel result={capacityResult} loading={capacityLoading} missingInputs={capacityMissingInputs} progressiveState={capacityState} missingMessage={progressiveAvailabilityMessage(capacityState)} />

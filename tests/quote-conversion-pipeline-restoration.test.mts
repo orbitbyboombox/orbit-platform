@@ -19,7 +19,7 @@ const snapshot = {
   quotation: { number: "QA-1", version: 1, acceptedAt: "2026-09-01T00:00:00Z" },
   customer: { company: "QA", email: "qa@example.com" },
   commercial: {
-    event: { name: "QA", date: "2026-12-01", time: "20:00", location: "QA", city: "Santiago", durationHours: 3 },
+    event: { name: "QA", date: "2026-12-01", time: "20:00", location: "After Office San Francisco", address: "Calle Ejemplo 123", city: "Santiago", durationHours: 3 },
     paymentCondition: "FIFTY_FIFTY",
   },
   items: [{ id: "service", itemType: "SERVICE", code: "CLASSIC", label: "Classic", quantity: 2, total: 580000 }],
@@ -29,6 +29,29 @@ test("quote conversion review does not block CASE-backed conversion on shell", (
   const review = buildQuoteConversionReview({ quoteId: "q", status: "ACCEPTED", snapshot });
   assert.equal(review.shellRequired, false);
   assert.doesNotThrow(() => assertQuoteConversionReady(review, {}));
+});
+
+test("legacy quotes require an explicit address and can correct the imported venue", () => {
+  const review = buildQuoteConversionReview({
+    quoteId: "legacy",
+    status: "ACCEPTED",
+    snapshot: {
+      ...snapshot,
+      commercial: {
+        ...snapshot.commercial,
+        event: { ...snapshot.commercial.event, location: "Calle Ejemplo 123", address: undefined },
+      },
+    },
+  });
+  assert.throws(() => assertQuoteConversionReady(review, {}), /Dirección del evento/);
+  const event = assertQuoteConversionReady(review, {
+    location: "After Office San Francisco",
+    address: "Calle Ejemplo 123",
+  });
+  assert.equal(event.location, "After Office San Francisco");
+  assert.equal(event.address, "Calle Ejemplo 123");
+  assert.equal(event.city, "Santiago");
+  assert.equal(review.event.location, "Calle Ejemplo 123");
 });
 
 test("review explains that resource capacity, not shell colour, gates conversion", () => {

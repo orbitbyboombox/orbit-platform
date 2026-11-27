@@ -1269,6 +1269,7 @@ export function NewProjectDrawer({
           },
           event: {
             ...draft.event,
+            address: eventAddress.trim(),
             durationHours: maximumHours,
             extras: [
               ...Array.from(

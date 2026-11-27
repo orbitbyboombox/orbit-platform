@@ -177,6 +177,7 @@ export async function loadCommercialHubData(
             eventDate: event.date ?? "",
             eventTime: event.time ?? "",
             eventLocation: event.location ?? "",
+            eventAddress: event.address ?? "",
             eventCity: event.city ?? "",
             validityDays: Number(row.validity_days),
             depositPercent: Number(row.deposit_percent),

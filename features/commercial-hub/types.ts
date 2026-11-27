@@ -86,6 +86,7 @@ export interface FormalQuoteDraft {
   eventDate: string;
   eventTime: string;
   eventLocation: string;
+  eventAddress?: string;
   eventCity: string;
   validityDays: number;
   depositPercent: number;

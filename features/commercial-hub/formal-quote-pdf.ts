@@ -27,6 +27,7 @@ export interface FormalQuotePdfModel {
     date?: string;
     time?: string;
     location?: string;
+    address?: string;
     city?: string;
   };
   lines: Array<{
@@ -279,7 +280,7 @@ export async function createFormalQuotePdf(model: FormalQuotePdfModel) {
 
   header(page, regular, bold, model);
   serviceHeading("CLIENTE");
-  const customerRows = [model.customer.company, formatChileanRut(model.customer.rut), model.customer.contact, model.customer.email, model.customer.phone, model.customer.address, model.event.name, model.event.date ? `Fecha: ${date(model.event.date)}` : "", model.event.time ? `Hora: ${model.event.time}` : "", [model.event.location, model.event.city].filter(Boolean).join(" · ")].filter((item): item is string => Boolean(item?.trim()));
+  const customerRows = [model.customer.company, formatChileanRut(model.customer.rut), model.customer.contact, model.customer.email, model.customer.phone, model.customer.address, model.event.name, model.event.date ? `Fecha: ${date(model.event.date)}` : "", model.event.time ? `Hora: ${model.event.time}` : "", model.event.location ? `Lugar: ${model.event.location}` : "", model.event.address ? `Dirección: ${model.event.address}` : "", model.event.city ? `Comuna: ${model.event.city}` : ""].filter((item): item is string => Boolean(item?.trim()));
   customerRows.forEach((item, index) => serviceParagraph(item, { bold: index === 0, size: index === 0 ? 10 : 8, lineHeight: index === 0 ? 12 : 9 }));
   y = Math.min(y - 28, 536);
 

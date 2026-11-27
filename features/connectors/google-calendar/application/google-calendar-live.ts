@@ -46,8 +46,8 @@ export function mapOperationalEventToCalendar(input: CalendarOperationalEventInp
     startTime: input.calendarStartTime,
     endTime: input.serviceEnd,
     endDate: input.serviceEndDate ?? input.eventDate,
-    location: input.customerAddress,
-    googleMapsLink: buildGoogleMapsLink(input.customerAddress),
+    location: [input.customerAddress, input.municipality].filter(Boolean).join(", "),
+    googleMapsLink: buildGoogleMapsLink(input.customerAddress, input.municipality, input.venue),
     portalUrl: input.portalUrl,
     color: GOOGLE_CALENDAR_EVENT_COLORS[input.eventType],
   };
@@ -58,7 +58,7 @@ export function fingerprintCalendarOperationalInput(input: CalendarOperationalEv
   const end = `${input.serviceEndDate ?? input.eventDate}T${input.serviceEnd}`;
   const staffCall = input.operatorCallTime.includes("·") ? `${input.operatorCallTime.split("·")[0].trim()}T${input.operatorCallTime.split("·")[1].trim()}` : null;
   const payload = mapOperationalEventToCalendar(input);
-  return hashCanonicalCalendarFingerprint({ orbitEventId: input.orbitEventId, serviceStartAt: start, serviceEndAt: end, staffCallAt: staffCall, staffCallSource: input.operatorCallTime ? "CANONICAL" : null, location: input.customerAddress, title: payload.title, description: payload.description });
+  return hashCanonicalCalendarFingerprint({ orbitEventId: input.orbitEventId, serviceStartAt: start, serviceEndAt: end, staffCallAt: staffCall, staffCallSource: input.operatorCallTime ? "CANONICAL" : null, location: payload.location, title: payload.title, description: payload.description });
 }
 
 function fingerprint(input: CalendarOperationalEventInput): string {

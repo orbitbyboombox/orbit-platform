@@ -45,6 +45,7 @@ const acceptedSnapshot = {
       date: "2026-11-20",
       time: "19:00",
       location: "Centro de Eventos",
+      address: "Calle Ejemplo 123",
       city: "Las Condes",
       durationHours: 4,
       shellType: "WHITE",

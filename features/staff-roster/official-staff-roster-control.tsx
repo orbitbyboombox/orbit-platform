@@ -74,6 +74,11 @@ export function OfficialStaffRosterControl({projectId}:{projectId:string}) {
     </header>
     {feedback&&<p role="status" className="mt-3 rounded-lg border p-3 text-sm">{feedback}</p>}
     {loading?<p className="mt-4 text-sm text-muted">Cargando asignaciones del evento…</p>:composer&&<>
+      <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+        <div><dt className="font-semibold">Lugar o recinto</dt><dd>{composer.location || "Por confirmar"}</dd></div>
+        <div><dt className="font-semibold">Dirección</dt><dd>{composer.address || "Por confirmar"}</dd></div>
+        <div><dt className="font-semibold">Comuna</dt><dd>{composer.city || "Por confirmar"}</dd></div>
+      </dl>
       <div className="mt-4 space-y-3">
         {composer.groups.map(({role, title, label, members}) => {
           if (!members.length) return <section key={role} className="rounded-xl border p-4"><strong>{title}</strong><p className="text-xs text-muted">Sin asignar</p></section>;

@@ -23,6 +23,7 @@ export type ReservationConfirmationTemplateInput = {
   eventDate: string;
   eventTime?: string | null;
   venue?: string | null;
+  address?: string | null;
   city?: string | null;
   serviceCodes: string[];
   commercialItems?: CustomerCommercialItem[];
@@ -75,7 +76,9 @@ export function buildReservationConfirmationTemplate(
     "INFORMACIÓN DEL EVENTO",
     `Fecha\n${eventDate(input.eventDate)}`,
     `Horario\n${input.eventTime?.slice(0, 5) || "Por confirmar"}`,
-    `Lugar\n${venue}`,
+    `Lugar\n${input.venue?.trim() || "Por confirmar"}`,
+    `Dirección\n${input.address?.trim() || "Por confirmar"}`,
+    `Comuna\n${input.city?.trim() || "Por confirmar"}`,
     "VALOR DEL SERVICIO CONTRATADO",
     ...(input.companyCommercial
       ? [`Valor neto\n${money(net)}`, `IVA 19%\n${money(vat)}`, `Total\n${money(input.total)}`]

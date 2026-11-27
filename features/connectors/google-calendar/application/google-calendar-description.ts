@@ -1,3 +1,4 @@
+import { buildEventMapsUrl } from "../../../../lib/event-location.ts";
 import type { CalendarOperationalEventInput } from "../types/google-calendar-live.types";
 
 const categoryLabels: Record<string, string> = {
@@ -38,9 +39,8 @@ function cleanCalendarField(value: string | null | undefined): string {
   return (value ?? "").replace(/<\/?[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 }
 
-export function buildGoogleMapsLink(address: string): string {
-  const cleaned = cleanCalendarField(address);
-  return cleaned ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(cleaned)}` : "Pendiente de dirección";
+export function buildGoogleMapsLink(address: string, municipality?: string, venue?: string): string {
+  return buildEventMapsUrl(cleanCalendarField(address), cleanCalendarField(municipality), cleanCalendarField(venue)) ?? "Pendiente de dirección";
 }
 
 export function buildCalendarDescription(input: CalendarOperationalEventInput, orbitEventId: string): string {
@@ -65,13 +65,15 @@ export function buildCalendarDescription(input: CalendarOperationalEventInput, o
     ...(includedExtras.length ? [`Extras incluidos: ${includedExtras.map(cleanCalendarField).join(", ")}`, ""] : []),
     `Cliente: ${cleanCalendarField(input.customerName)}`,
     "",
+    ...(input.venue ? [`Lugar: ${cleanCalendarField(input.venue)}`] : []),
     `Dirección: ${cleanCalendarField(input.customerAddress) || "Pendiente de registrar"}`,
     "",
+    ...(input.municipality ? [`Comuna: ${cleanCalendarField(input.municipality)}`, ""] : []),
     `Teléfono cliente: ${cleanCalendarField(input.customerPhone) || "Pendiente"}`,
     "",
     `Contacto producción: ${cleanCalendarField(input.operationalContact ?? input.operator) || "Por confirmar"}`,
     "",
-    `Google Maps: ${buildGoogleMapsLink(input.customerAddress)}`,
+    `Google Maps: ${buildGoogleMapsLink(input.customerAddress, input.municipality, input.venue)}`,
     "",
     `ORBIT Event ID: ${orbitEventId}`,
     ...blockLines,

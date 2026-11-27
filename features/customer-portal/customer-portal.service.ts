@@ -1,3 +1,4 @@
+import { resolveEventAddress } from "@/lib/event-location";
 import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -49,7 +50,7 @@ export async function loadCustomerPortalProject(access: {id:string;project_id:st
   if (failure?.error) throw failure.error;
   const finance=project.data?.finance as Record<string,unknown>|null;const operations=project.data?.operations as Record<string,unknown>|null;
   const notes=String(operations?.notes??"");const note=(label:string)=>notes.match(new RegExp(`${label}:\\s*([^\\n]+)`,"i"))?.[1]?.trim();const contactParts=(note("Contacto operacional")??"").split("·").map(value=>value.trim());
-  const portalProject={...project.data!,finance:{status:finance?.status,paymentStatus:finance?.paymentStatus,reservationAmount:finance?.reservationAmount,remainingBalance:finance?.remainingBalance,totalPaid:finance?.totalPaid,paymentMethod:finance?.paymentMethod,dueDate:finance?.dueDate},operations:{status:operations?.status,designStatus:operations?.designStatus,designNotes:operations?.designNotes,designApprovedAt:operations?.designApprovedAt,designDocumentId:operations?.designDocumentId,arrivalTime:operations?.arrivalTime,eventAddress:operations?.eventAddress??note("Dirección evento"),operationalContact:operations?.operationalContact??contactParts[0],operationalPhone:operations?.operationalPhone??contactParts[1]}};
+  const portalProject={...project.data!,finance:{status:finance?.status,paymentStatus:finance?.paymentStatus,reservationAmount:finance?.reservationAmount,remainingBalance:finance?.remainingBalance,totalPaid:finance?.totalPaid,paymentMethod:finance?.paymentMethod,dueDate:finance?.dueDate},operations:{status:operations?.status,designStatus:operations?.designStatus,designNotes:operations?.designNotes,designApprovedAt:operations?.designApprovedAt,designDocumentId:operations?.designDocumentId,arrivalTime:operations?.arrivalTime,eventAddress:resolveEventAddress(operations),operationalContact:operations?.operationalContact??contactParts[0],operationalPhone:operations?.operationalPhone??contactParts[1]}};
   const [gallery, customerDocuments] = await Promise.all([
     loadCustomerGallery(access.project_id),
     loadCustomerDocuments(access.project_id),
