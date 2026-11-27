@@ -1,4 +1,4 @@
-import { renderPremiumQuotationEmail } from "../connectors/google-gmail/application/boombox-premium-quotation-email.html";
+import { renderPremiumQuotationEmail } from "../connectors/google-gmail/application/boombox-premium-quotation-email.html.ts";
 
 const escapeHtml = (value: string) =>
   value.replace(

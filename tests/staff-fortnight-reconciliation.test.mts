@@ -1,3 +1,4 @@
+import { PGlite } from "@electric-sql/pglite";
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
@@ -11,9 +12,8 @@ account.settlementStatus='FINALIZED'; account.calculation.workPending=295000;
 assert.equal(staffAccountOutstanding(account),211000);
 account.paymentStatus='PAID';assert.equal(staffAccountOutstanding(account),16000);
 });
-test('Reconciliation migration executes real V6 and protects history',async context=>{
-if(!process.env.ORBIT_PGLITE_MODULE){context.skip('Isolated PostgreSQL required');return;}
-const {PGlite}=await import(process.env.ORBIT_PGLITE_MODULE);const db=new PGlite();
+test('Reconciliation migration executes real V6 and protects history',async () => {
+const db = new PGlite();
 try{await db.exec(`
 create role anon; create role authenticated; create role service_role;
 create schema auth; create table auth.users(id uuid primary key);
@@ -64,8 +64,9 @@ insert into staff_monthly_accounts(staff_id,accounting_month,work_net) values('2
 await db.exec('drop function public.ensure_staff_monthly_account(uuid,date); drop function public.calculate_staff_monthly_settlement_legacy(uuid,date) cascade;');
 await db.exec(readFileSync('tests/fixtures/ensure-staff-monthly-account-v6.sql','utf8'));
 await db.exec(readFileSync('supabase/migrations/20261111005940_staff_fortnight_reconciliation.sql','utf8'));
-const q=async(sql:string)=> (await db.query(sql)).rows;
-let calc=(await q("select calculate_staff_monthly_settlement_legacy('20000000-0000-0000-0000-000000000001','2026-11-01') c"))[0].c;
+type Settlement = { workNet: number; details: { hours: number; roles: string[]; blockName: string }[] };
+const q = async <Row = Record<string, unknown>,>(sql: string) => (await db.query<Row>(sql)).rows;
+let calc=(await q<{ c: Settlement }>("select calculate_staff_monthly_settlement_legacy('20000000-0000-0000-0000-000000000001','2026-11-01') c"))[0].c;
 assert.equal(calc.workNet,32500);assert.equal(calc.details[0].hours,4.5);assert.deepEqual(calc.details[0].roles,['SUPERVISOR']);assert.equal(calc.details[0].blockName,'AM');
 assert.equal(Number((await q('select work_net from staff_monthly_accounts'))[0].work_net),32500);
 const preview=await q("select * from preview_staff_first_fortnight('2026-11-01')");assert.equal(Number(preview[0].work_net),32500);
@@ -78,7 +79,7 @@ const before=JSON.stringify(await q('select * from staff_monthly_accounts'));
 await db.exec("update event_staff_payments set total_internal_payment=70000");
 assert.equal(JSON.stringify(await q('select * from staff_monthly_accounts')),before);
 await db.exec("update assignments set status='CANCELLED'");
-calc=(await q("select calculate_staff_monthly_settlement_legacy('20000000-0000-0000-0000-000000000001','2026-11-01') c"))[0].c;assert.equal(calc.workNet,0);
+calc=(await q<{ c: Settlement }>("select calculate_staff_monthly_settlement_legacy('20000000-0000-0000-0000-000000000001','2026-11-01') c"))[0].c;assert.equal(calc.workNet,0);
 await assert.rejects(()=>db.exec("select set_config('test.admin','false',false);select * from preview_staff_first_fortnight('2026-11-01')"),/administrativo/);
 console.log('PASS roles, 4.5 hours, preview, source refresh, adjustments, immutable history, cancelled exclusions and auth');
 }finally{await db.close();}});

@@ -1,6 +1,6 @@
 import type { CollectionBankDetails } from "./collection-bank-details";
-import type { ConsolidatedCollectionLine } from "./consolidated-collection";
-import { isSpWeddingCustomer } from "./consolidated-collection";
+import type { ConsolidatedCollectionLine } from "./consolidated-collection.ts";
+import { isSpWeddingCustomer } from "./consolidated-collection.ts";
 
 type ConsolidatedCollectionEmail = {
   customerId: string;

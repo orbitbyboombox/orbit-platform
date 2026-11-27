@@ -1,4 +1,4 @@
-import { type BoomboxCommercialEmailInput } from "./boombox-commercial-email.html";
+import { type BoomboxCommercialEmailInput } from "./boombox-commercial-email.html.ts";
 
 const safe = (value: string) => value.replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 

@@ -2,25 +2,25 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { canCompleteDiagnostics, diagnosticSolution, operationalTarget, safeActionHref, isPhysicalConfigurationReady } from '../features/founder-action-center/diagnostic-model.ts';
+import { canCompleteDiagnostics, diagnosticSolution, operationalTarget, safeActionHref, isPhysicalConfigurationReady, type ActionDiagnostic } from '../features/founder-action-center/diagnostic-model.ts';
 const require = createRequire(import.meta.url), ts = require('typescript');
 const source = (path: string) => readFileSync(path, 'utf8');
 const model = { canCompleteDiagnostics, diagnosticSolution, operationalTarget, safeActionHref, isPhysicalConfigurationReady };
-function compile(path: string, modules: Record<string, unknown>) {
+function compile<T>(path: string, modules: Record<string, unknown>) {
   const output = ts.transpileModule(source(path), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX } }).outputText;
-  const exports: any = {};
+  const exports = {} as T;
   new Function('require','exports',output)((name: string) => { if (!(name in modules)) throw new Error(`Unexpected import ${name}`); return modules[name]; }, exports);
   return exports;
 }
 const id='11111111-1111-4111-8111-111111111111';
-function fixture({type='STAFF_OPERATOR_INCIDENT',role='CEO',authenticated=true,status='OPEN',error=false,metadata={box_code:'CASE-02'},reasons=[{code:'CONTACT',label:'Falta confirmar contacto en terreno.'}]}:any={}) {
-  const calls: any[]=[];
+function fixture({type='STAFF_OPERATOR_INCIDENT',role='CEO',authenticated=true,status='OPEN',error=false,metadata={box_code:'CASE-02'} as Record<string, unknown>,reasons=[{code:'CONTACT',label:'Falta confirmar contacto en terreno.'}]}={}) {
+  const calls: string[]=[];
   const notification = {id,notification_type:type,title:'Revisar',message:'Mensaje completo',status:'UNREAD',action_required:true,project_id:id,entity_id:id,related_href:`/projects/${id}`,metadata,projects:{name:'Evento de prueba',orbit_event_id:'QA-001',operations:{physicalConfiguration:'UNDEFINED'}}};
-  const admin={from(table:string){calls.push(table);const chain:any={};for(const method of ['select','eq','is','not','order','limit'])chain[method]=()=>chain;
+  const admin={from(table:string){calls.push(table);const chain: Record<string, (...args: never[]) => unknown>={};for(const method of ['select','eq','is','not','order','limit'])chain[method]=()=>chain;
     const value=()=>({error:error?{message:'Database unavailable'}:null,data:table==='internal_notifications'?notification:table==='event_incidents'?{id,status,description:'Componente faltante\n'+ 'texto '.repeat(100),operational_assets:null}:table==='project_operational_contracts'?{readiness_status:status==='RESOLVED'?'READY':'NOT_READY',readiness_reasons:reasons}:table==='accounts_receivable_projection'?{id,invoice_number:'Q1',outstanding_balance:status==='RESOLVED'?0:5000,effective_status:status==='RESOLVED'?'PAID':'OVERDUE',due_date:'2026-01-01',projects:{name:'Prueba'}}:null});
-    chain.maybeSingle=async()=>value();chain.then=(resolve:any)=>resolve(value());return chain;}};
+    chain.maybeSingle=async()=>value();chain.then=(resolve: (result: ReturnType<typeof value>) => unknown)=>resolve(value());return chain;}};
   const client={auth:{getUser:async()=>({data:{user:authenticated?{id}:null},error:null})},from(){return{select(){return{eq(){return{maybeSingle:async()=>({data:{role},error:null})}}}}}}};
-  const service=compile('features/founder-action-center/diagnostics.service.ts',{'server-only':{},'@/lib/supabase/server':{createSupabaseServerClient:async()=>client},'@/lib/supabase/admin':{createAdminClient:()=>admin},'@/features/finance/finance-read-model':{loadFinanceDashboardReadModel:async()=>({risks:status==='RESOLVED'?[]:[{key:'OVERDUE_COLLECTIONS',label:'Cobros',count:2,detail:'Dos facturas',href:'/finance/receivables?status=overdue'}]})},'./diagnostic-model':model});
+  const service=compile<typeof import('../features/founder-action-center/diagnostics.service')>('features/founder-action-center/diagnostics.service.ts',{'server-only':{},'@/lib/supabase/server':{createSupabaseServerClient:async()=>client},'@/lib/supabase/admin':{createAdminClient:()=>admin},'@/features/finance/finance-read-model':{loadFinanceDashboardReadModel:async()=>({risks:status==='RESOLVED'?[]:[{key:'OVERDUE_COLLECTIONS',label:'Cobros',count:2,detail:'Dos facturas',href:'/finance/receivables?status=overdue'}]})},'./diagnostic-model':model});
   return {service,calls};
 }
 test('anonymous and Staff cannot inspect administrative diagnostics',async()=>{
@@ -53,12 +53,12 @@ test('invalid physical configurations never certify LISTO',()=>{
 test('missing data and database failures never certify LISTO',async()=>{
   await assert.rejects(fixture({error:true}).service.loadActionDiagnostic(id));
   assert.equal(canCompleteDiagnostics([]),false);
-  assert.equal(canCompleteDiagnostics([{resolved:true},{resolved:false}] as any),false);
-  assert.equal(canCompleteDiagnostics([{resolved:true}] as any),true);
+  assert.equal(canCompleteDiagnostics([{resolved:true},{resolved:false}] as ActionDiagnostic[]),false);
+  assert.equal(canCompleteDiagnostics([{resolved:true}] as ActionDiagnostic[]),true);
 });
 test('LISTO rechecks the server source and rejects active problems',async()=>{
   for(const resolved of [true,false]){
-    const actions=compile('features/founder-action-center/diagnostic.actions.ts',{'next/cache':{revalidatePath(){}},'./diagnostics.service':{loadActionDiagnostic:async()=>({resolved})},'./diagnostic-model':model});
+    const actions=compile<typeof import('../features/founder-action-center/diagnostic.actions')>('features/founder-action-center/diagnostic.actions.ts',{'next/cache':{revalidatePath(){}},'./diagnostics.service':{loadActionDiagnostic:async()=>({resolved})},'./diagnostic-model':model});
     const result=await actions.validateFounderActions([id]); assert.equal(result.ok,resolved,JSON.stringify(result));
     assert.equal((await actions.validateFounderActions([])).ok,false);
   }

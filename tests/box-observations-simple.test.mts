@@ -32,16 +32,16 @@ test('read model excludes resolved and no-issue reports without deleting records
 });
 test('server-rendered compact repair card is accessible and escapes observations',()=>{
   const code=ts.transpileModule(src('features/resources/incident-quick-card.tsx'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText;
-  const exports:any={};new Function('require','exports',code)((name:string)=>name==='next/link'?{default:({children,...props}:any)=>require('react').createElement('a',props,children)}:name.includes('incident-resolution.actions')?{recordIncidentResolution:async()=>({ok:true})}:require(name),exports);
+  const exports = {} as typeof import("../features/resources/incident-quick-card");new Function('require','exports',code)((name:string)=>name==='next/link'?{default:({children,...props}: import("react").ComponentProps<"a">)=>require('react').createElement('a',props,children)}:name.includes('incident-resolution.actions')?{recordIncidentResolution:async()=>({ok:true})}:require(name),exports);
   const html=require('react-dom/server').renderToStaticMarkup(require('react').createElement(exports.IncidentQuickCard,{incident:mapIncidentObservation({id:'one',description:'<script>danger</script>',operational_assets:{asset_code:'CASE-02'}}),onResolved(){}}));
   assert.match(html,/Caja 2/);assert.match(html,/REPARADO/);assert.match(html,/&lt;script&gt;/);assert.doesNotMatch(html,/<script>/);
 });
 test('repair action checks admin, preserves a previous resolution, and only calls the incident RPC',async()=>{
   const code=ts.transpileModule(src('features/founder-action-center/incident-resolution.actions.ts'),{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
   for(const status of ['OPEN','RESOLVED']){
-    const calls:any[]=[],paths:string[]=[];
-    const client={from(table:string){assert.equal(table,'event_incidents');return{select(){return{eq(){return{maybeSingle:async()=>({data:{project_id:'project',status},error:null})}}}}}},rpc:async(name:string,args:any)=>{calls.push({name,args});return{error:null}}};
-    const exports:any={};new Function('require','exports',code)((name:string)=>name==='next/cache'?{revalidatePath:(value:string)=>paths.push(value)}:{requireDiagnosticAdmin:async()=>({client})},exports);
+    const calls: { name: string; args: { p_resolution: string } }[]=[],paths:string[]=[];
+    const client={from(table:string){assert.equal(table,'event_incidents');return{select(){return{eq(){return{maybeSingle:async()=>({data:{project_id:'project',status},error:null})}}}}}},rpc:async(name:string,args: { p_resolution: string })=>{calls.push({name,args});return{error:null}}};
+    const exports = {} as { recordIncidentResolution: (id: string, resolution: string) => Promise<{ ok: boolean }> };new Function('require','exports',code)((name:string)=>name==='next/cache'?{revalidatePath:(value:string)=>paths.push(value)}:{requireDiagnosticAdmin:async()=>({client})},exports);
     assert.equal((await exports.recordIncidentResolution('11111111-1111-4111-8111-111111111111','Cable reemplazado y probado')).ok,true);
     assert.equal(calls.length,status==='OPEN'?1:0);
     if(status==='OPEN'){assert.equal(calls[0].name,'resolve_staff_operator_incident');assert.equal(calls[0].args.p_resolution,'Cable reemplazado y probado');assert.ok(paths.includes('/projects/project'));}
