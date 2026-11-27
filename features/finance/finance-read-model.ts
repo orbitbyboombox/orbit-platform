@@ -93,6 +93,7 @@ export async function loadFinanceDashboardReadModel(
   financialTruthSource?:
     | Awaited<ReturnType<typeof loadFinancialTruth>>
     | Promise<Awaited<ReturnType<typeof loadFinancialTruth>>>,
+  options: { refreshReceivableNotifications?: boolean } = {},
   requestedPeriod?: string,
 ): Promise<FinanceDashboardReadModel> {
   const now = new Date();
@@ -105,7 +106,7 @@ export async function loadFinanceDashboardReadModel(
 
   const [truth, receivableDataset, receivablesResult, paymentsResult, expensesResult, settlementsResult, staffMovementsResult, fuelResult, routesResult, routeEventsResult, integrityResult,bankAccountsResult,fixedRulesResult,trainingPaymentsResult,officeIncomeResult] = await Promise.all([
     financialTruthSource ? Promise.resolve(financialTruthSource) : loadFinancialTruth(client),
-    loadAccountsReceivable(client),
+    loadAccountsReceivable(client, { refreshNotifications: options.refreshReceivableNotifications }),
     client.from("accounts_receivable_projection").select("id,project_id,customer_id,due_date,amount,paid_amount,outstanding_balance,effective_status"),
     client.from("invoice_payments").select("id,invoice_id,amount,movement_type,paid_at,method,deleted_at,invoices!inner(financial_record_state,record_origin,status,deleted_at)").is("deleted_at", null).eq("invoices.financial_record_state", "ACTIVE").eq("invoices.record_origin", "PRODUCTION").neq("invoices.status", "CANCELLED").is("invoices.deleted_at", null),
     client.from("expenses").select("id,project_id,occurred_on,total,status,receipt_path,approval_reason,event_staff_settlement_id,category,supplier").is("deleted_at", null),

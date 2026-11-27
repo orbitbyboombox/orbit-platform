@@ -73,6 +73,7 @@ export default async function OperationsPage() {
   const financeDashboardPromise = loadFinanceDashboardReadModel(
     client,
     financialTruthPromise,
+    { refreshReceivableNotifications: false },
   );
   const founderActionCenterPromise = loadFounderActionCenter(auth.user.id);
   const communicationPromise = loadCommunicationHubProjection(client);
