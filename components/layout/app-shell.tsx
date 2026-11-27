@@ -23,7 +23,7 @@ export interface AppShellProps {
 
 export function AppShell({ children, userEmail, userId, userName, userRole, actionableNotifications, modules, workspace, resilientSyncEnabled }: AppShellProps) {
   return (
-    <ResilientSyncProvider enabled={resilientSyncEnabled} organizationId="b00b0000-0000-4000-8000-000000000001" userId={userId}><ModuleManagerProvider modules={modules}><PersonalWorkspaceProvider initialPreferences={workspace}><div className="min-h-screen bg-background">
+    <ResilientSyncProvider enabled={resilientSyncEnabled} organizationId="b00b0000-0000-4000-8000-000000000001" userId={userId}><ModuleManagerProvider modules={modules}><PersonalWorkspaceProvider initialPreferences={workspace}><div className="orbit-premium-shell min-h-screen bg-background">
       <Sidebar hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} />
       <div className="transition-[padding] duration-200 md:pl-20 lg:pl-[15.25rem] peer-data-[collapsed=true]:lg:pl-20">
         <Header actionableNotifications={actionableNotifications} hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} resilientSyncEnabled={resilientSyncEnabled} userEmail={userEmail} userName={userName} userRole={userRole} />
