@@ -12,7 +12,7 @@ import {
 } from "./payment-term-classification";
 import { resolveCollectionEventDetail } from "./collection-event-detail";
 import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
-import { actualPaidAmount, daysUntilDue, effectiveReceivableStatus, scheduleDueDate } from "./canonical-financial-state";
+import { actualPaidAmount, daysUntilDue, effectiveReceivableStatus, invoicePaymentCashImpact, scheduleDueDate } from "./canonical-financial-state";
 import { defaultD10Date } from "./d10-manual-collection";
 import { collectionDeliveryLabel } from "./collection-email-status";
 import { collectionRecipientFields } from "./collection-recipients";
@@ -20,6 +20,12 @@ import { collectionRecipientFields } from "./collection-recipients";
 function relation<T>(value: T | T[] | null | undefined): T | null {
   return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
 }
+
+type CollectionInvoice = {
+  orbit_event_id?: string | null;
+  projects?: { name?: string | null } | Array<{ name?: string | null }> | null;
+};
+type CollectionProject = { name?: string | null; orbit_event_id?: string | null; customers?: unknown };
 
 function eventDetail(project: {
   event_date?: string | null;
@@ -113,7 +119,7 @@ export async function loadAccountsReceivable(
       .from("agreements")
       .select("id,project_id,status")
       .order("created_at", { ascending: false }),
-    client.from("invoice_payments").select("id,invoice_id,amount,paid_at,method,reason,created_at").is("deleted_at",null).gt("amount",0).order("paid_at",{ascending:false}),
+    client.from("invoice_payments").select("id,invoice_id,amount,movement_type,paid_at,method,reason,created_at,deleted_at").is("deleted_at",null).gt("amount",0).order("paid_at",{ascending:false}),
     client.from("profiles").select("id,display_name"),
     client.from("communications").select("id,project_id,communication_type,channel,subject,status,occurred_at,sent_at,to_recipient,created_by,sent_by,failure_reason,external_message_id,context_snapshot").in("communication_type",["PAYMENT_REMINDER","COLLECTION_EMAIL","COLLECTION_D10","COLLECTION_OVERDUE_AUTOMATIC","COLLECTION_EMAIL_CONSOLIDATED","COLLECTION_WHATSAPP_OPENED","COLLECTION_EMAIL_OPENED","COLLECTION_PHONE_OPENED"]).order("occurred_at",{ascending:false}),
     client.from("financial_event_records").select("project_id,payment_schedule"),
@@ -140,7 +146,7 @@ export async function loadAccountsReceivable(
   const actionsByProject=new Map<string,Array<{id:string;type:string;channel:string;subject:string;status:string;occurredAt:string;sentAt:string|null;toRecipient:string|null;createdBy:string|null;sentBy:string|null;failureReason:string|null;externalMessageId:string|null}>>();
   for(const row of collectionActionsResult.data??[]){const list=actionsByProject.get(row.project_id??"")??[];list.push({id:row.id,type:row.communication_type,channel:row.channel,subject:row.subject??"Acción de cobranza",status:row.status,occurredAt:row.occurred_at,sentAt:row.sent_at,toRecipient:row.to_recipient,createdBy:profiles.get(row.created_by??"")??row.created_by,sentBy:profiles.get(row.sent_by??"")??row.sent_by,failureReason:row.failure_reason,externalMessageId:row.external_message_id});actionsByProject.set(row.project_id??"",list);}
   const projectRows = new Map((projectsResult.data ?? []).map((row) => [row.id, row]));
-  const invoiceByProject = new Map<string, any>();
+  const invoiceByProject = new Map<string, CollectionInvoice>();
   for (const invoice of [...(historyResult.data ?? []), ...(invoicesResult.data ?? [])]) {
     if (invoice.project_id && !invoiceByProject.has(invoice.project_id)) invoiceByProject.set(invoice.project_id, invoice);
   }
@@ -153,7 +159,7 @@ export async function loadAccountsReceivable(
     .filter((row) => ["PAYMENT_REMINDER", "COLLECTION_EMAIL", "COLLECTION_D10", "COLLECTION_OVERDUE_AUTOMATIC", "COLLECTION_EMAIL_CONSOLIDATED"].includes(row.communication_type))
     .filter((row) => ["SENT", "PENDING", "FAILED"].includes(String(row.status).toUpperCase()))
     .map((row) => {
-      const project = projectRows.get(row.project_id ?? "") as Record<string, any> | undefined;
+      const project = projectRows.get(row.project_id ?? "") as CollectionProject | undefined;
       const customer = project ? (Array.isArray(project.customers) ? project.customers[0] : project.customers) : null;
       const invoice = invoiceByProject.get(row.project_id ?? "");
       const snapshot = row.context_snapshot && typeof row.context_snapshot === "object"
@@ -169,7 +175,7 @@ export async function loadAccountsReceivable(
         id: row.id,
         customerName: String(customer?.full_name ?? "Cliente"),
         customerCompany: customer?.company ? String(customer.company) : null,
-        eventName: String(project?.name ?? invoice?.projects?.name ?? "Evento"),
+        eventName: String(project?.name ?? relation(invoice?.projects)?.name ?? "Evento"),
         eventCode: String(project?.orbit_event_id ?? invoice?.orbit_event_id ?? "—"),
         recipient: String(row.to_recipient ?? "Sin destinatario"),
         balance: Number.isFinite(snapshotBalance) ? snapshotBalance : null,
@@ -312,8 +318,8 @@ export async function loadAccountsReceivable(
         collectorId:row.issued_by??row.created_by??null,
         collectorName:profiles.get(row.issued_by??row.created_by??"")??"Sin asignar",
         collectionActions:actionsByProject.get(row.project_id)??[],
-        paymentHistory:history.map(item=>({id:item.id,amount:Number(item.amount),paidAt:item.paid_at,method:item.method??"—",observation:item.reason??""})),
-        lastPayment:history[0]?{id:history[0].id,amount:Number(history[0].amount),paidAt:history[0].paid_at,method:history[0].method??"—"}:null,
+        paymentHistory:history.map(item=>({id:item.id,amount:invoicePaymentCashImpact(item.movement_type,item.amount),paidAt:item.paid_at,method:item.method??"—",observation:item.reason??""})),
+        lastPayment:history[0]?{id:history[0].id,amount:invoicePaymentCashImpact(history[0].movement_type,history[0].amount),paidAt:history[0].paid_at,method:history[0].method??"—"}:null,
         recordState: row.financial_record_state,
         recordOrigin: row.record_origin,
       };

@@ -1,4 +1,5 @@
 import { selectCanonicalFuelLogs, type CanonicalFuelCandidate } from "./canonical-fuel.ts";
+import { invoicePaymentCashImpact } from "../accounts-receivable/canonical-financial-state.ts";
 
 export type CanonicalInvoicePayment = {
   id: string;
@@ -27,17 +28,7 @@ export function isQaOrTestMarker(...values: readonly unknown[]): boolean {
   return values.some((value) => /(^|[\s/_-])(qa|test)([\s/_-]|$)/i.test(String(value ?? "").trim()));
 }
 
-/** Mirrors public.invoice_payment_cash_impact without issuing one RPC per row. */
-export function invoicePaymentCashImpact(
-  movementType: string | null | undefined,
-  value: number | string | null,
-): number {
-  const type = (movementType?.trim() || "PARTIAL_PAYMENT").toUpperCase();
-  const total = amount(value);
-  if (type === "DEPOSIT" || type === "PARTIAL_PAYMENT" || type === "FULL_PAYMENT") return total;
-  if (type === "RETURN_COMPLETED") return -Math.abs(total);
-  return 0;
-}
+export { invoicePaymentCashImpact };
 
 export function signedStaffMovement(movement: CanonicalStaffMovement): number {
   return movement.movement_type.toUpperCase() === "REVERSAL"
