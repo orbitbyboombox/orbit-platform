@@ -36,6 +36,10 @@
       "schedule": "*/5 * * * *"
     },
     {
+      "path": "/api/cron/tributary-drive-archive",
+      "schedule": "*/5 * * * *"
+    },
+    {
       "path": "/api/cron/overdue-collections",
       "schedule": "0 16,17 * * 3"
     }
