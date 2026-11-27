@@ -46,3 +46,51 @@ jobs:
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/canonical-calendar-update.test.mts tests/google-calendar-remote-reconciliation.test.mts
       - name: Next.js build
         run: pnpm exec next build
+
+  isolated-postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      SUPABASE_ACCESS_TOKEN: ''
+      SUPABASE_DB_PASSWORD: ''
+      SUPABASE_PROJECT_ID: ''
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.67.1
+      - name: Bootstrap repository migrations in local Supabase
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$SUPABASE_ACCESS_TOKEN"
+          test -z "$SUPABASE_PROJECT_ID"
+          test -z "$SUPABASE_DB_PASSWORD"
+          supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,supavisor
+          supabase db reset --local --no-seed
+      - name: Validate canonical update RPC, grants and idempotency contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          db_container="$(docker ps --filter 'name=supabase_db_' --format '{{.Names}}' | head -n 1)"
+          test -n "$db_container"
+          docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE fn regprocedure;
+          BEGIN
+            fn := to_regprocedure('public.apply_canonical_calendar_event_update(uuid,text,timestamptz,text,text,text,text,timestamptz,jsonb,integer,uuid)');
+            IF fn IS NULL THEN RAISE EXCEPTION 'canonical calendar RPC is missing'; END IF;
+            IF has_function_privilege('anon', fn, 'EXECUTE') OR has_function_privilege('public', fn, 'EXECUTE') THEN
+              RAISE EXCEPTION 'canonical calendar RPC is publicly executable';
+            END IF;
+            IF NOT has_function_privilege('authenticated', fn, 'EXECUTE') THEN
+              RAISE EXCEPTION 'authenticated role lacks canonical calendar RPC execute';
+            END IF;
+            IF NOT has_function_privilege('service_role', fn, 'EXECUTE') THEN
+              RAISE EXCEPTION 'service_role lacks canonical calendar RPC execute';
+            END IF;
+          END $$;
+          SQL
