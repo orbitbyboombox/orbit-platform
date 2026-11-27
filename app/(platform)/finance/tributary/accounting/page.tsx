@@ -22,7 +22,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
     ? selected.year + (selected.month && /^(0[1-9]|1[0-2])$/.test(selected.month) ? "-" + selected.month : "")
     : selected.period ?? today;
   const period = /^[1-9]\d{3}(?:-(?:0[1-9]|1[0-2]))?$/.test(input) ? input : today;
-  const activeModule = selected.libro === "compras" || selected.libro === "ventas" ? selected.libro : ["honorarios", "importar", "cierre", "historial"].includes(selected.activeModule ?? "") ? selected.module : "home";
+  const activeModule = selected.libro === "compras" || selected.libro === "ventas" ? selected.libro : ["honorarios", "importar", "cierre", "historial"].includes(selected.module ?? "") ? selected.module : "home";
   const showRcv = activeModule === "home" || activeModule === "compras" || activeModule === "ventas";
   const bounds = periodBounds(period);
   const [rows, periodEvents, staffAmounts, fees, imports] = await Promise.all([
@@ -52,7 +52,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
       <Link href={activeModule === "home" ? `/finance/tributary?period=${period.slice(0,7)}` : `?period=${period}`} className="inline-flex min-h-11 items-center text-sm font-semibold text-brand">← {activeModule === "home" ? "Volver al Centro tributario" : "Volver a Contabilidad"}</Link>
       <header className="rounded-3xl border bg-card p-5 sm:p-7"><p className="text-xs font-semibold uppercase tracking-[.18em] text-brand">Finanzas SII · ORBIT</p><h1 className="mt-2 text-3xl font-semibold">Contabilidad Premium</h1><p className="mt-2 text-sm text-muted">Registros oficiales del SII, revisión y respaldos por período. Sin movimientos contables automáticos.</p></header>
       <form className="grid items-end gap-3 rounded-xl border p-3 sm:grid-cols-3" method="get">
-        {selected.libro && <input type="hidden" name="libro" value={selected.libro} />}{selected.module && <input type="hidden" name="module" value={selected.activeModule} />}
+        {selected.libro && <input type="hidden" name="libro" value={selected.libro} />}{selected.module && <input type="hidden" name="module" value={selected.module} />}
         <label className="text-sm">Año
           <input name="year" defaultValue={period.slice(0,4)} pattern="[1-9][0-9]{3}" inputMode="numeric" required className="mt-1 block w-full rounded-lg border bg-background p-2" />
         </label>
