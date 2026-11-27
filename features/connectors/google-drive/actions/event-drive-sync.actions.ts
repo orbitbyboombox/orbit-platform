@@ -14,7 +14,7 @@ export async function reconcileEventDriveAction(projectId: string) {
     if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) {
       throw new Error("Solo Founder o Administración puede sincronizar Drive.");
     }
-    const eventFolder = await synchronizeConfirmedReservationDrive({ client, projectId, actorId: user.id });
+    const eventFolder = await synchronizeConfirmedReservationDrive({ client, projectId, actorId: user.id }, true);
     const result = await recoverPendingEventDocuments({ client, projectId, eventFolder });
     revalidatePath(`/projects/${projectId}`);
     return {

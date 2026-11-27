@@ -15,8 +15,8 @@ async function synchronizeWithRetry(drive:GoogleDriveLive,plan:ReturnType<typeof
 
 type ReservationDriveInput = { client: SupabaseClient; projectId: string; actorId?: string; recordTimeline?: boolean };
 
-export async function synchronizeConfirmedReservationDrive(input: ReservationDriveInput): Promise<ReservationDriveFolderResult> {
-  return withDriveReconciliationLease("reservation-folders", () => synchronizeReservationFolders(input));
+export async function synchronizeConfirmedReservationDrive(input: ReservationDriveInput, waitForRelease = false): Promise<ReservationDriveFolderResult> {
+  return withDriveReconciliationLease("reservation-folders", () => synchronizeReservationFolders(input), waitForRelease);
 }
 
 async function synchronizeReservationFolders(input: ReservationDriveInput): Promise<ReservationDriveFolderResult> {
