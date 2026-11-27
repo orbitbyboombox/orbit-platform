@@ -38,12 +38,15 @@ function PurchaseCategoryForm({ period, doc }: { period: string; doc: Register["
   </form>;
 }
 
-export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod }: { saved: Record<Register["kind"], Register["documents"]>; initialBook?: Register["kind"]; categoryPeriod?: string }) {
+export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, mode = "book" }: { saved: Record<Register["kind"], Register["documents"]>; initialBook?: Register["kind"]; categoryPeriod?: string; mode?: "book" | "import" }) {
   const [registers, setRegisters] = useState<Partial<Record<Register["kind"], Register>>>({});
+  const [page, setPage] = useState(1);
   const [kind, setKind] = useState<Register["kind"]>(initialBook);
   const [query, setQuery] = useState("");
   const [month, setMonth] = useState("");
   const [type, setType] = useState("");
+  const [category, setCategory] = useState("");
+  const [match, setMatch] = useState("");
   const [error, setError] = useState("");
   const [source, setSource] = useState<{ file: File; kind: Register["kind"] } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -66,8 +69,15 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod }
   const results = documents.filter(doc =>
     (!month || doc.issued.startsWith(month))
     && (!type || doc.type === type)
+    && (!category || (doc.expenseCategory || "PENDING") === category)
+    && (!match || (doc.evidence?.match_status ?? "PENDING") === match)
     && normalizeRcv([doc.company, doc.rut, doc.folio, doc.issued, doc.total, amount(doc.total)].join(" ")).includes(normalizeRcv(query)),
   ).sort((left, right) => right.issued.localeCompare(left.issued) || left.company.localeCompare(right.company, "es") || left.folio.localeCompare(right.folio, "es", { numeric: true }));
+
+  const pageSize = 20;
+  const pageCount = Math.max(1, Math.ceil(results.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const visible = results.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   async function loadFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
@@ -75,6 +85,12 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod }
     if (!file) return;
     setError("");
     setSource(null);
+    setRegisters({});
+    setStoredPeriod("");
+    setPage(1);
+    setQuery("");
+    setCategory("");
+    setMatch("");
     setConfirmed(false);
     setNotice("");
     try {
@@ -95,13 +111,13 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod }
   return (
     <section id="libros" className="scroll-mt-20 space-y-5 rounded-3xl border bg-card p-4 sm:p-6">
       <div>
-        <h2 className="text-xl font-semibold">Documentos de Compras y Ventas</h2>
+        <h2 className="text-xl font-semibold">{mode === "import" ? "Importar / actualizar CSV del SII" : `Libro de ${kind.toLowerCase()}`}</h2>
         <p className="mt-1 text-sm text-muted">Revisa y confirma los documentos para guardarlos. Las diferencias quedan pendientes de revisión y no generan movimientos contables.</p>
       </div>
-      <label id="importar-sii" className="block scroll-mt-20 text-sm font-semibold">
+      {mode === "import" && <label id="importar-sii" className="block scroll-mt-20 text-sm font-semibold">
         Importar / actualizar CSV del SII
         <input className="mt-2 block w-full text-sm" type="file" accept=".csv,text/csv" onChange={loadFile} />
-      </label>
+      </label>}
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       {source && source.kind === kind && <div className="space-y-2 rounded-xl border p-3">
         <p className="text-sm break-all">{source.file.name}</p>
@@ -116,36 +132,37 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod }
       </div>}
       {notice && <p role="status" className="text-sm">{notice}</p>}
       {storedPeriod && <a className="inline-flex min-h-11 items-center text-sm font-semibold text-brand" href={`?period=${storedPeriod}&libro=${kind.toLowerCase()}#libros`}>Consultar período {storedPeriod}</a>}
-      <div className="flex flex-wrap gap-2" aria-label="Registro">
+      {mode === "import" && <div className="flex flex-wrap gap-2" aria-label="Registro">
         {(["Compras", "Ventas"] as const).map(label => (
-          <button key={label} type="button" aria-pressed={kind === label} onClick={() => { setKind(label); setType(""); setMonth(""); }}
+          <button key={label} type="button" aria-pressed={kind === label} onClick={() => { setKind(label); setType(""); setMonth(""); setPage(1); setCategory(""); setMatch(""); }}
             className="min-h-11 rounded-xl border px-4 text-sm font-semibold aria-pressed:border-brand aria-pressed:text-brand">
             {label} · {registers[label]?.documents.length ?? saved[label].length}
           </button>
         ))}
-      </div>
-      {(registers[kind] || saved[kind].length > 0) && <>
+      </div>}
+      {mode === "book" && saved[kind].length === 0 && <p className="rounded-xl border p-4 text-sm text-muted">No hay documentos para este período.</p>}
+      {(mode === "book" || source) && (registers[kind] || saved[kind].length > 0) && <>
         <div className="grid gap-3 md:grid-cols-3">
           <label className="text-sm">Buscar
             <input className="mt-1 block w-full rounded-lg border bg-background p-2" value={query}
-              placeholder="Nombre, RUT, folio, fecha o monto" onChange={event => setQuery(event.target.value)} />
+              placeholder="Nombre, RUT, folio, fecha o monto" onChange={event => { setQuery(event.target.value); setPage(1); }} />
           </label>
           <label className="text-sm">Mes de emisión
-            <input className="mt-1 block w-full rounded-lg border bg-background p-2" type="month" value={month} onChange={event => setMonth(event.target.value)} />
+            <input className="mt-1 block w-full rounded-lg border bg-background p-2" type="month" value={month} onChange={event => { setMonth(event.target.value); setPage(1); }} />
           </label>
           <label className="text-sm">Tipo de documento
-            <select className="mt-1 block w-full rounded-lg border bg-background p-2" value={type} onChange={event => setType(event.target.value)}>
+            <select className="mt-1 block w-full rounded-lg border bg-background p-2" value={type} onChange={event => { setType(event.target.value); setPage(1); }}>
               <option value="">Todos</option>
               {[...new Set(documents.map(doc => doc.type))].map(label => <option key={label}>{label}</option>)}
             </select>
           </label>
         </div>
-        <p className="text-sm text-muted" aria-live="polite">{results.length} documentos</p>
-        {results.map((doc, index) => (
+        {mode === "book" && <div className="grid gap-3 sm:grid-cols-2">{kind === "Compras" && <label className="text-sm">Categoría<select value={category} onChange={event=>{setCategory(event.target.value);setPage(1)}} className="mt-1 block w-full rounded-lg border bg-background p-2"><option value="">Todas</option><option value="PENDING">Por revisar</option>{Object.entries(categories).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>}<label className="text-sm">Conciliación<select value={match} onChange={event=>{setMatch(event.target.value);setPage(1)}} className="mt-1 block w-full rounded-lg border bg-background p-2"><option value="">Todas</option><option value="MATCHED">Coincidencia interna</option><option value="PENDING">Sin coincidencia</option><option value="AMBIGUOUS">Coincidencias múltiples</option></select></label></div>}
+        <p className="text-sm text-muted" aria-live="polite">{results.length} documentos · mostrando {visible.length}</p>
+        {!results.length && <p className="rounded-xl border p-4 text-sm text-muted">No se encontraron documentos con estos filtros.</p>}
+        {visible.map((doc, index) => (
           <details key={`${doc.key}-${index}`} className="rounded-xl border p-3">
-            <summary className="cursor-pointer break-words text-sm">
-              <strong>{doc.company || doc.rut}</strong> · {doc.type} · Folio {doc.folio} · {doc.issued} · {amount(doc.total)}
-            </summary>
+            <summary className="cursor-pointer break-words text-sm"><span className="inline-grid w-[94%] min-w-0 gap-1 align-middle sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] sm:items-center"><span className="min-w-0"><strong className="block break-words">{doc.company || doc.rut}</strong><span className="text-xs text-muted">{doc.type} · Folio {doc.folio}</span></span><span className="text-xs text-muted">{doc.issued}{kind === "Compras" && <span className="block">{doc.expenseCategory ? categories[doc.expenseCategory as keyof typeof categories] ?? doc.expenseCategory : "Por revisar"}</span>}</span><strong className="tabular-nums sm:text-right">{amount(doc.total)}</strong></span></summary>
             {doc.duplicate && <p className="mt-2 text-sm text-danger">Identificador repetido. Requiere revisión.</p>}
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
               {Object.entries({
@@ -170,6 +187,7 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod }
             {kind === "Compras" && categoryPeriod && !registers.Compras && <PurchaseCategoryForm period={categoryPeriod} doc={doc} />}
           </details>
         ))}
+        {pageCount > 1 && <nav aria-label="Paginación de documentos" className="flex flex-wrap items-center justify-between gap-3"><button type="button" disabled={currentPage===1} onClick={()=>setPage(currentPage-1)} className="min-h-11 rounded-lg border px-3 text-sm disabled:opacity-40">Anterior</button><span className="text-sm text-muted">Página {currentPage} de {pageCount}</span><button type="button" disabled={currentPage===pageCount} onClick={()=>setPage(currentPage+1)} className="min-h-11 rounded-lg border px-3 text-sm disabled:opacity-40">Siguiente</button></nav>}
       </>}
     </section>
   );
