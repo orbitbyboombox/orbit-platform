@@ -18,7 +18,8 @@
   --danger-soft: #3b1717;
   --info: #93c5fd;
   --info-soft: #172554;
-  --brand: #F78900;
+  --brand: #F28E2B;
+  --brand-foreground: #111113;
   --radius-card: 1rem;
   --space-section: 1.5rem;
   --shadow-card: 0 1px 0 rgb(255 255 255 / 0.025), 0 20px 56px rgb(0 0 0 / 0.2);
@@ -43,6 +44,7 @@
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
   --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
 }
 
 @keyframes orbit-loader-spin { to { transform: rotate(360deg); } }
@@ -226,9 +228,8 @@ html, body {
   scrollbar-color: color-mix(in srgb, var(--brand) 60%, transparent) transparent;
 }
 
-#platform-workspace-content :where([role="tablist"], [data-tabs], .tabs) {
+#platform-workspace-content :where([role="tablist"]:not([class*="grid-cols-"]), [data-tabs], .tabs) {
   overflow-x: auto;
-  white-space: nowrap;
 }
 
 @media (max-width: 47.99rem) {
@@ -527,10 +528,71 @@ aside[aria-label="Nueva reserva"] aside {
 /* Shared navigation surfaces for the authenticated workspace. */
 @media screen {
   .orbit-premium-shell {
-    --shell-surface: #1c1f26;
-    --shell-surface-deep: #101114;
-    --shell-highlight: rgb(242 142 43 / .16);
+    --shell-surface: #1a1d24;
+    --shell-surface-deep: #111318;
+    --shell-highlight: color-mix(in srgb, var(--brand) 17%, transparent);
     --shell-divider: #30343d;
-    --shell-brand: #f28e2b;
+    --shell-brand: var(--brand);
+  }
+
+  .orbit-premium-shell :where(aside, header, [role="dialog"]) {
+    border-color: var(--shell-divider);
+  }
+
+  .orbit-premium-shell :where(button, a) {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .orbit-premium-shell :where(a[aria-current="page"]) {
+    color: var(--foreground);
+  }
+
+  .orbit-premium-shell :where([role="tablist"], [data-tabs], .tabs) {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--brand) 55%, transparent) transparent;
+  }
+
+  .orbit-premium-shell :where([role="tab"][aria-selected="true"]) {
+    border-color: color-mix(in srgb, var(--brand) 62%, var(--border));
+    background-color: color-mix(in srgb, var(--brand) 12%, var(--card));
+    color: var(--brand);
+  }
+
+  .orbit-premium-shell :where(button, a):focus-visible {
+    outline-color: color-mix(in srgb, var(--brand) 75%, white);
+  }
+
+  @media (max-width: 47.99rem) {
+    .orbit-premium-shell > div > header {
+      gap: .25rem;
+    }
+
+    .orbit-premium-shell > div > header > :where(button, a) {
+      flex-shrink: 0;
+    }
+  }
+
+  @media (max-width: 24.99rem) {
+    .orbit-premium-shell > div > header {
+      gap: .125rem;
+      padding-inline: .375rem;
+    }
+
+    .orbit-premium-shell > div > header .orbit-sync-indicator {
+      width: 2rem;
+      min-width: 2rem;
+      height: 2rem;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .orbit-premium-shell > div > header .orbit-sync-indicator span {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
   }
 }
