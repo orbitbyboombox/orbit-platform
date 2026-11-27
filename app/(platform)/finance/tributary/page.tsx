@@ -38,6 +38,7 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
   const rows = documents ?? [];
   return (
     <main className="space-y-7" aria-label="Centro SII">
+      <Link href="/finance/tributary/accounting" className="inline-flex min-h-11 items-center rounded-xl border border-brand/40 px-4 text-sm font-semibold text-brand">Contabilidad Premium</Link>
       <header className="rounded-3xl border bg-card p-6 sm:p-8">
         <p className="text-xs font-semibold uppercase tracking-[.2em] text-brand">Finanzas · SII</p>
         <h1 className="mt-2 text-3xl font-semibold">Centro tributario</h1>
@@ -85,7 +86,7 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
 
       <section className="rounded-2xl border bg-card p-5">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.16em] text-brand">Historial oficial existente</p><h2 className="mt-1 text-xl font-semibold">Documentos vinculados</h2></div><span className="text-sm text-muted">{rows.length} registro{rows.length === 1 ? "" : "s"}</span></div>
-        {rows.length ? <ul className="mt-4 divide-y">{rows.map((row) => <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><span><strong className="block">{row.external_tax_document_type ?? "DTE"}</strong><small className="text-muted">Folio {row.external_folio} · {row.external_issue_date ?? "Fecha pendiente"}</small></span><Link className="text-sm font-semibold text-brand hover:underline" href={`/api/projects/${row.project_id}/documents/${row.id}`}>Abrir documento</Link></li>)}</ul> : <p className="mt-4 text-sm text-muted">No hay documentos oficiales cargados. Las simulaciones de certificación permanecen separadas.</p>}
+        {rows.length ? <ul className="mt-4 divide-y">{rows.map((row) => <li key={row.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><span><strong className="block">{row.external_tax_document_type ?? "DTE"}</strong><small className="text-muted">Folio {row.external_folio} · {row.external_issue_date ?? "Fecha pendiente"}</small></span><Link className="text-sm font-semibold text-brand hover:underline" href={`/projects/${row.project_id}/documents/${row.id}/viewer`}>Abrir documento</Link></li>)}</ul> : <p className="mt-4 text-sm text-muted">No hay documentos oficiales cargados. Las simulaciones de certificación permanecen separadas.</p>}
       </section>
 
       <section className="rounded-2xl border bg-card p-5">

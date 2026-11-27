@@ -1,0 +1,47 @@
+"use client";
+
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+
+export function PdfViewer({ title, src, download, fallback, onClose }: {
+  title: string;
+  src: string;
+  download: string;
+  fallback: string;
+  onClose?: () => void;
+}) {
+  const router = useRouter();
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [message, setMessage] = useState("");
+
+  function close() {
+    if (onClose) { onClose(); return; }
+    // A direct launch or a link from outside ORBIT must stay inside the app.
+    const referrer = document.referrer ? new URL(document.referrer) : null;
+    if (referrer?.origin === window.location.origin && window.history.length > 1) router.back();
+    else router.replace(fallback);
+  }
+
+  function print() {
+    try {
+      const pdf = frame.current?.contentWindow;
+      if (!pdf) throw new Error();
+      pdf.focus();
+      pdf.print();
+    } catch {
+      setMessage("Si tu aplicación no permite imprimir aquí, descarga el PDF y ábrelo para imprimirlo.");
+    }
+  }
+
+  return <main className="flex min-h-[calc(100dvh-4rem)] min-w-0 flex-col bg-background">
+    <header className="sticky top-0 z-20 grid min-w-0 grid-cols-2 gap-2 border-b bg-card p-2 sm:flex sm:items-center sm:px-4">
+      <button className="min-h-11 rounded-lg px-3 text-sm font-semibold text-brand" type="button" onClick={close}>← Regresar</button>
+      <h1 className="hidden min-w-0 flex-1 truncate text-sm font-semibold sm:block">{title}</h1>
+      <button className="min-h-11 rounded-lg border px-3 text-sm" type="button" onClick={close}>Cerrar visor</button>
+      <a className="flex min-h-11 items-center justify-center rounded-lg border px-3 text-sm" href={download} download>Descargar</a>
+      <button className="min-h-11 rounded-lg border px-3 text-sm" type="button" onClick={print}>Imprimir</button>
+    </header>
+    {message && <p role="status" className="px-3 py-2 text-sm">{message}</p>}
+    <iframe ref={frame} className="block min-h-[70dvh] w-full min-w-0 flex-1 border-0 bg-white" src={src} title={title} />
+  </main>;
+}
