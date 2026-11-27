@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { notFound, redirect } from "next/navigation";
 import { getGoogleWorkspaceAdministrator } from "@/features/connectors/google-workspace/application/google-workspace.authorization.guard";
-import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
+import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { createRefreshingDriveTransport, createTributaryDriveArchive } from "@/features/finance/tributary-drive-archive";
 
 const route = "/finance/tributary/drive-verification";
@@ -40,6 +40,19 @@ async function verifyDrive() {
     };
     transport = createRefreshingDriveTransport(token, loadGoogleWorkspaceAccessToken, measuredFetch);
     const archive = createTributaryDriveArchive(token, transport);
+    status = "identity";
+    // Read-only check of the effective Drive principal; do not expose tokens or provider bodies.
+    const about = await transport("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)", {signal:AbortSignal.timeout(10000)});
+    if (!about.ok) throw new Error("Identidad Drive no verificable.");
+    const principal = await about.json() as {user?:{emailAddress?:string}};
+    const connection = await loadGoogleWorkspaceConnection();
+    if (!principal.user?.emailAddress || !connection.workspaceAccount || principal.user.emailAddress.toLowerCase() !== connection.workspaceAccount.toLowerCase()) { status = "identity-mismatch"; throw new Error("Identidad Drive distinta."); }
+    status = "root-access";
+    const root = await transport("https://www.googleapis.com/drive/v3/files/1ptC-FNBe5rbsMB9SDgmdSbCJs6AsRvdc?fields=id,name,mimeType,trashed,capabilities(canAddChildren)&supportsAllDrives=true", {signal:AbortSignal.timeout(10000)});
+    if (!root.ok) { status = root.status === 404 ? "root-invisible" : root.status === 403 ? "root-denied" : "root-unavailable"; throw new Error("Raíz no verificable."); }
+    const metadata = await root.json() as {id?:string;name?:string;mimeType?:string;trashed?:boolean;capabilities?:{canAddChildren?:boolean}};
+    if (metadata.id !== "1ptC-FNBe5rbsMB9SDgmdSbCJs6AsRvdc" || metadata.name !== "FINANZAS SII" || metadata.mimeType !== "application/vnd.google-apps.folder" || metadata.trashed) { status="root"; throw new Error("Raíz no coincide."); }
+    if (metadata.capabilities?.canAddChildren !== true) { status="root-readonly"; throw new Error("Raíz sin escritura."); }
     status = "destination";
     // Use a known existing period. No accounting rows or folders are created.
     const csvFolder = await archive.resolveFolder("2026-11-01", "Compras", "CSV");
@@ -90,6 +103,12 @@ async function verifyDrive() {
 
 const messages: Record<string, string> = {
   passed: "Prueba aprobada: CSV y PDF íntegros en FINANZAS SII, dos reintentos con los mismos IDs y archivos retirados a la papelera.",
+  identity: "No se pudo verificar la cuenta efectiva del token en Google Drive.",
+  "identity-mismatch": "La cuenta efectiva del token Drive no coincide con la cuenta Workspace configurada.",
+  "root-invisible": "La cuenta efectiva coincide, pero el token no puede ver la raíz FINANZAS SII (404). Revisar alcance OAuth y autorización específica de la carpeta; no crear otra raíz.",
+  "root-denied": "La cuenta efectiva coincide, pero Google deniega acceso a FINANZAS SII (403).",
+  "root-unavailable": "No se pudo consultar la raíz FINANZAS SII.",
+  "root-readonly": "FINANZAS SII es visible, pero no admite escritura con el token actual.",
   workspace: "ORBIT no pudo obtener un token de la conexión Workspace activa.",
   destination: "ORBIT no pudo resolver y verificar las carpetas existentes de noviembre.",
   "drive-401": "Google Drive rechazó el token devuelto a ORBIT (HTTP 401).",
