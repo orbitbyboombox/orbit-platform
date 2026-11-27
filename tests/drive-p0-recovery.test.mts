@@ -39,7 +39,7 @@ test("archival rejects homonyms with different bytes", () => {
 
 test("manual reconciliation is restricted and reports incomplete uploads", () => {
   assert.match(button, /\["CEO", "ADMINISTRATOR"\]/);
-  assert.match(button, /ok: unresolved === 0/);
+  assert.match(button, /ok: result.pending === 0/);
 });
 
 test("automatic event cleanup preserves physical files and retains Calendar handling", () => {
@@ -49,4 +49,23 @@ test("automatic event cleanup preserves physical files and retains Calendar hand
 
 test("the Drive provider has no permanent delete operation", () => {
   assert.doesNotMatch(provider, /deleteFile|method:\s*"DELETE"/);
+});
+
+test("Event 360 Drive recovery routes each current event document type", () => {
+  const recovery = source(prefix + "application/event-document-recovery.service.ts");
+  for (const type of [
+    "COMMERCIAL_DOCUMENT", "CUSTOMER_PURCHASE_ORDER", "DESIGN", "EVENT_DIGITAL_PHOTO_TEMPLATE",
+    "EXTERNAL_TAX_DOCUMENT", "PAYMENT_RECEIPT", "PHOTO_STRIP_DESIGN", "SIGNED_AGREEMENT", "STAFF_EXPENSE_RECEIPT",
+  ]) {
+    assert.match(recovery, new RegExp(`\\["${type}", "`));
+  }
+  assert.match(button, /recoverPendingEventDocuments\(/);
+});
+
+test("document recovery verifies the original and links only an unchanged pending record", () => {
+  const recovery = source(prefix + "application/event-document-recovery.service.ts");
+  assert.match(recovery, /parents\[0\] !== eventFolder.folderId/);
+  assert.match(recovery, /checksum !== document.checksum/);
+  assert.ok(recovery.indexOf("checksum !== document.checksum") < recovery.indexOf("await archiveVerifiedDriveFile("));
+  assert.match(recovery, /\.eq\("storage_path", document.storage_path\)\.is\("deleted_at", null\)\.is\("drive_file_id", null\)/);
 });
