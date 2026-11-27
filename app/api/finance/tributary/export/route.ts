@@ -66,7 +66,7 @@ export async function GET(request: Request) {
     try {
       const staff = await loadMonthlyAccountingStaff(period);
       const sourceIds = (selected: Row[]) => selected.flatMap(row => "source_id" in row && typeof row.source_id === "string" ? [row.source_id] : []);
-      const backups = await readMonthlyAccountingAttachments(staff.attachments, sourceIds(purchases), sourceIds(sales));
+      const backups = await readMonthlyAccountingAttachments(staff.attachments, sourceIds(purchases), sourceIds(sales), staff.missingBoletas, staff.missingReceipts);
       const extra = [...staff.sheets, { title: "Respaldos", headers: ["grupo", "identificador", "estado", "archivo"], rows: backups.manifest }];
       for (const { title, headers, rows } of extra) {
         const sheet = workbook.addWorksheet(title);
