@@ -96,7 +96,8 @@ jobs:
           for source in database-schema.sql database-data.sql storage.tar.gz storage-manifest.json source-code.tar.gz backup-manifest.json sha256sums.txt; do
             printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass stdin -in "$work/$source.enc" -out "$work/$source"
           done
-          (cd "$work" && sha256sum -c sha256sums.txt)
+          node scripts/normalize-orbit-backup-checksums.mjs "$work/sha256sums.txt" > "$work/sha256sums.local.txt"
+          (cd "$work" && sha256sum --strict -c sha256sums.local.txt)
           tar -tzf "$work/source-code.tar.gz" >/dev/null
           mkdir -p "$work/restored-storage"
           tar -xzf "$work/storage.tar.gz" -C "$work/restored-storage"
