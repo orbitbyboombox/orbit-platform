@@ -4,14 +4,13 @@ import { createHash } from "node:crypto";
 
 import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createTributaryDriveArchive } from "./tributary-drive-archive";
+import { createRefreshingDriveTransport, createTributaryDriveArchive } from "./tributary-drive-archive";
 
 const MAX_ATTEMPTS = 5;
 const LEASE_MS = 5 * 60_000;
 
 export async function processTributaryDriveQueue() {
   const admin = createAdminClient();
-  const archive = createTributaryDriveArchive(await loadGoogleWorkspaceAccessToken());
   const cutoff = new Date(Date.now() - LEASE_MS).toISOString();
   const { data: rows, error } = await admin.from("tributary_drive_sync_items")
     .select("id,document_id,project_id,customer_id,artifact_kind,idempotency_key,attempt_count,status,updated_at,drive_file_id,drive_folder_id")
@@ -19,7 +18,10 @@ export async function processTributaryDriveQueue() {
     .or(`and(or(idempotency_key.like.document:%:central:PDF,idempotency_key.like.rcv-import:%:CSV),or(status.eq.PENDING,and(status.in.(RETRY,SYNCING),updated_at.lt.${cutoff})))`)
     .order("updated_at").limit(2);
   if (error) throw error;
+  if (!rows?.length) return { selected: 0, archived: 0 };
 
+  const token = await loadGoogleWorkspaceAccessToken();
+  const archive = createTributaryDriveArchive(token, createRefreshingDriveTransport(token, loadGoogleWorkspaceAccessToken));
   let archived = 0;
   for (const row of rows ?? []) {
     const owner = new Date().toISOString();
