@@ -76,7 +76,7 @@ export function parseSiiRcv(bytes: ArrayBuffer) {
       groups.set(key, group);
       if (detail) return null;
       return {
-        key, issued, rut, folio, company: get("razon social"), type: labels[code] ?? "Tipo de documento por revisar",
+        key, issued, rut, code, folio, company: get("razon social"), type: labels[code] ?? "Tipo de documento por revisar",
         net: money(get("monto neto")), exempt: money(get("monto exento")),
         vat: money(get(vat)), nonRecoverableVat: money(get("monto iva no recuperable")),
         total: money(get("monto total")), knownType: Boolean(labels[code]),
