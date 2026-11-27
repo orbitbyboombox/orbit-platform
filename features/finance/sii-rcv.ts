@@ -92,3 +92,14 @@ export function parseSiiRcv(bytes: ArrayBuffer) {
     return [{ ...doc, otherTaxes: group.taxes, duplicate: group.count > 1, expenseCategory: null as string | null }];
   }) };
 }
+
+export function readSiiRcvFilename(filename: string) {
+  const parts = /^(RCV_COMPRA_REGISTRO|RCV_VENTA)_([0-9.-]+)_([1-9]\d{3}(?:0[1-9]|1[0-2]))\.csv$/i.exec(filename);
+  if (!parts || parts[2].replace(/[^0-9]/g, "") !== "765652723") {
+    throw new Error("El nombre del archivo no identifica a BOOMBOX y su período tributario.");
+  }
+  return {
+    kind: parts[1].toUpperCase() === "RCV_VENTA" ? "Ventas" : "Compras",
+    period: `${parts[3].slice(0, 4)}-${parts[3].slice(4)}`,
+  } as const;
+}
