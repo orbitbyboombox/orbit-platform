@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { isAdministrativeRole } from "@/lib/auth/roles";
 import { createSupabaseServerActionClient } from "@/lib/supabase/server";
-import { loadOfficialRoster, makeOfficialRosterPdf, saveOfficialRosterBlock, sendOfficialRoster } from "./official-staff-roster";
+import { createManualRosterMember, deleteManualRosterMember, loadOfficialRoster, makeOfficialRosterPdf, saveOfficialRosterBlock, sendOfficialRoster, updateManualRosterMember } from "./official-staff-roster";
 
 async function actor() {
   const client=await createSupabaseServerActionClient();
@@ -43,4 +43,16 @@ export async function sendOfficialRosterAction(input:{projectId:string;requestId
     revalidatePath("/projects/"+input.projectId);
     return {ok:true as const,result,message:"Nómina oficial enviada a "+result.recipient+"."};
   } catch(error) { return {ok:false as const,error:message(error)}; }
+}
+export async function createManualRosterMemberAction(input:{projectId:string;fullName:string;rut:string;cargo:string}) {
+  try { const actorId=await actor(); const member=await createManualRosterMember({...input,actorId}); revalidatePath("/projects/"+input.projectId); return {ok:true as const,member}; }
+  catch(error) { return {ok:false as const,error:message(error)}; }
+}
+export async function updateManualRosterMemberAction(input:{id:string;projectId:string;fullName:string;rut:string;cargo:string}) {
+  try { const actorId=await actor(); const member=await updateManualRosterMember({...input,actorId}); revalidatePath("/projects/"+input.projectId); return {ok:true as const,member}; }
+  catch(error) { return {ok:false as const,error:message(error)}; }
+}
+export async function deleteManualRosterMemberAction(input:{id:string;projectId:string}) {
+  try { const actorId=await actor(); await deleteManualRosterMember({...input,actorId}); revalidatePath("/projects/"+input.projectId); return {ok:true as const}; }
+  catch(error) { return {ok:false as const,error:message(error)}; }
 }
