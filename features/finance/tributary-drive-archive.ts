@@ -108,3 +108,24 @@ export function createTributaryDriveArchive(token: string, transport: typeof fet
     },
   };
 }
+
+/** Try once with a newly issued token, preserving the exact request and file ID. */
+export function createRefreshingDriveTransport(initialToken: string, refresh: () => Promise<string>, fetchDrive: typeof fetch = fetch): typeof fetch {
+  let token = initialToken;
+  return async (input, init) => {
+    const url = input instanceof Request ? input.url : input.toString();
+    if (new URL(url).origin !== "https://www.googleapis.com") throw new Error("Destino Drive inválido.");
+    const send = (currentToken: string) => {
+      const headers = new Headers(init?.headers);
+      headers.set("Authorization", `Bearer ${currentToken}`);
+      return fetchDrive(input, { ...init, headers });
+    };
+    const used = token;
+    const response = await send(used);
+    if (response.status !== 401) return response;
+    const renewed = await refresh();
+    if (!renewed || renewed === used) return response;
+    token = renewed;
+    return send(renewed);
+  };
+}
