@@ -54,14 +54,22 @@ revoke execute on function public.sii_rcv_record_period_event(text,date,text,tex
 grant execute on function public.sii_rcv_record_period_event(text,date,text,text,uuid) to service_role;
 
 create function public.sii_rcv_period_documents(p_company text,p_start date,p_end date)
-returns table(register text,snapshot jsonb,has_difference boolean)
+returns table(register text,snapshot jsonb,has_difference boolean,expense_category text)
 language sql stable set search_path = '' as $$
   select distinct on (i.register, d.id)
     i.register, d.snapshot,
-    bool_or(o.differs) over (partition by i.register,d.id)
+    bool_or(o.differs) over (partition by i.register,d.id),
+    classification.category
   from public.sii_rcv_import_observations o
   join public.sii_rcv_imports i on i.id = o.import_id
   join public.sii_rcv_documents d on d.id = o.document_id
+  left join lateral (
+    select case when count(distinct nullif(btrim(e.confirmed_category),'')) = 1
+      then min(nullif(btrim(e.confirmed_category),'')) end as category
+    from public.expenses e
+    where i.register = 'Compras' and e.deleted_at is null and e.approved_at is not null
+      and regexp_replace(upper(e.supplier_rut),'[^0-9K]','','g') = d.issuer_rut
+  ) classification on true
   where i.company_rut = p_company and d.company_rut = p_company
     and i.period >= p_start and i.period < p_end
   order by i.register,d.id
