@@ -12,7 +12,9 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: true, enabled: false, selected: 0, archived: 0 }, { headers: { "Cache-Control": "no-store" } });
   }
   try {
-    return NextResponse.json({ ok: true, enabled: true, ...await processTributaryDriveQueue() }, { headers: { "Cache-Control": "no-store" } });
+    const result = await processTributaryDriveQueue();
+    console.info("[tributary-drive-archive] authenticated run", result);
+    return NextResponse.json({ ok: true, enabled: true, ...result }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json({ ok: false, error: "No se pudo procesar la cola tributaria." }, { status: 500 });
   }

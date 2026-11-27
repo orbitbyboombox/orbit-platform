@@ -87,7 +87,7 @@ export async function readMonthlyAccountingAttachments(
       manifest.push([row.folder, row.id, "Omitido: respaldo inaccesible o vacío", ""]);
       continue;
     }
-    const ext = ({ "application/pdf": "pdf", "application/xml": "xml", "text/xml": "xml", "image/jpeg": "jpg", "image/png": "png" } as Record<string, string>)[row.mime_type || response.data.type];
+    const ext = ({ "application/pdf": "pdf", "application/xml": "xml", "text/xml": "xml", "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" } as Record<string, string>)[row.mime_type || response.data.type];
     if (!ext) {
       manifest.push([row.folder, row.id, "Omitido: formato sin identificar o no admitido", ""]);
       continue;

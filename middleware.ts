@@ -3,8 +3,11 @@ import { updateSession } from "@/lib/supabase/middleware";
 
 export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname === "/orbit-resilient-sync-sw.js") return NextResponse.next();
-  // The scheduled worker authenticates its own request with CRON_SECRET.
+  // These scheduled workers authenticate their own requests with CRON_SECRET.
   if (request.method === "GET" && request.nextUrl.pathname === "/api/cron/manual-reservation-integrations") {
+    return NextResponse.next();
+  }
+  if (request.method === "GET" && request.nextUrl.pathname === "/api/cron/tributary-drive-archive") {
     return NextResponse.next();
   }
   if (request.nextUrl.pathname === "/api/payments/mercadopago/webhook" || request.nextUrl.pathname === "/api/cron/office-lease-monthly") return NextResponse.next();
