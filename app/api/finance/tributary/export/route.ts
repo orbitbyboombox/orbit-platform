@@ -67,7 +67,7 @@ export async function GET(request: Request) {
       const staff = await loadMonthlyAccountingStaff(period);
       const sourceIds = (selected: Row[]) => selected.flatMap(row => "source_id" in row && typeof row.source_id === "string" ? [row.source_id] : []);
       const backups = await readMonthlyAccountingAttachments(staff.attachments, sourceIds(purchases), sourceIds(sales), staff.missingBoletas, staff.missingReceipts);
-      const extra = [...staff.sheets, { title: "Respaldos", headers: ["grupo", "identificador", "estado", "archivo"], rows: backups.manifest }];
+      const extra = [...staff.sheets, { title: "Respaldos", headers: ["grupo", "identificador", "estado", "archivo", "referencia_drive"], rows: backups.manifest }];
       for (const { title, headers, rows } of extra) {
         const sheet = workbook.addWorksheet(title);
         sheet.addRow(headers);
@@ -84,7 +84,7 @@ export async function GET(request: Request) {
       `Compras: ${purchases.length} · Ventas documentadas: ${sales.length} · Filas por revisar: ${pending.length}`,
       "La columna IVA contiene el monto registrado por documento. No determina derecho a crédito fiscal ni saldo oficial SII.",
       "Staff: liquidaciones y pagos por período tributario, en hojas separadas. No sumar ambas fuentes como un solo pago.",
-      "Consulta Respaldos para identificar incluidos, faltantes y omitidos. El ZIP incluye solamente documentos ya asociados y permitidos.",
+      "Consulta Respaldos para identificar incluidos, faltantes y omitidos. Las referencias Drive conservan los permisos de acceso existentes.",
       "No incluye simulaciones ni genera XML oficiales. La conciliación con el SII queda pendiente.",
     ].join("\n"));
     const output = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });

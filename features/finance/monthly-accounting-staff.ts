@@ -48,8 +48,8 @@ export async function readMonthlyAccountingAttachments(
   const fields = "id,storage_bucket,storage_path,mime_type";
   const [staff, expenses, sales] = await Promise.all([
     staffIds.size ? admin.from("staff_onboarding_documents").select(fields).in("id", [...staffIds.keys()]) : { data: [], error: null },
-    expenseIds.length ? admin.from("documents").select(`${fields},expense_id`, { count: "exact" }).in("expense_id", expenseIds).is("deleted_at", null).eq("is_current", true) : { data: [], error: null },
-    saleIds.length ? admin.from("documents").select(fields).in("id", saleIds).is("deleted_at", null) : { data: [], error: null },
+    expenseIds.length ? admin.from("documents").select(`${fields},expense_id,drive_file_id`, { count: "exact" }).in("expense_id", expenseIds).is("deleted_at", null).eq("is_current", true) : { data: [], error: null },
+    saleIds.length ? admin.from("documents").select(`${fields},drive_file_id`).in("id", saleIds).is("deleted_at", null) : { data: [], error: null },
   ]);
   if (staff.error || expenses.error || sales.error || ("count" in expenses && (expenses.count ?? 0) > (expenses.data?.length ?? 0))) {
     throw new Error("No se pudo completar el inventario de respaldos.");
@@ -64,6 +64,11 @@ export async function readMonthlyAccountingAttachments(
     ...missingBoletas.map(id => ["Boletas-Staff", id, "Liquidación sin boleta asociada", ""]),
     ...missingReceipts.map(id => ["Pagos-Staff", id, "Pago sin comprobante asociado", ""]),
   ];
+  const driveReferences = new Map([...expenses.data ?? [], ...sales.data ?? []].flatMap(row =>
+    row.drive_file_id && /^[A-Za-z0-9_-]+$/.test(row.drive_file_id)
+      ? [[row.id, `https://drive.google.com/open?id=${row.drive_file_id}`] as const]
+      : [],
+  ));
   const seen = new Set<string>();
   let remaining = 2_500_000;
   for (const row of candidates) {
@@ -101,5 +106,5 @@ export async function readMonthlyAccountingAttachments(
   for (const id of saleIds) if (!seen.has(id)) manifest.push(["Ventas", id, "Documento asociado no encontrado", ""]);
   const linkedExpenses = new Set((expenses.data ?? []).map(row => row.expense_id));
   for (const id of expenseIds) if (!linkedExpenses.has(id)) manifest.push(["Proveedores", id, "Gasto sin respaldo asociado", ""]);
-  return { files, manifest };
+  return { files, manifest: manifest.map(row => [...row, driveReferences.get(row[1]) ?? ""]) };
 }
