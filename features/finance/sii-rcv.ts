@@ -89,6 +89,6 @@ export function parseSiiRcv(bytes: ArrayBuffer) {
   return { kind, documents: documents.flatMap(doc => {
     if (!doc) return [];
     const group = groups.get(doc.key)!;
-    return [{ ...doc, otherTaxes: group.taxes, duplicate: group.count > 1 }];
+    return [{ ...doc, otherTaxes: group.taxes, duplicate: group.count > 1, expenseCategory: null as string | null }];
   }) };
 }
