@@ -78,11 +78,12 @@ export async function processTributaryDriveQueue() {
       if (!reserved) continue;
 
       await sync(driveId);
-      const { error: completionError } = await admin.from("tributary_drive_sync_items")
+      const { data: completed, error: completionError } = await admin.from("tributary_drive_sync_items")
         .update({ status: "SYNCED", synced_at: new Date().toISOString(), last_error: null, updated_at: new Date().toISOString() })
-        .eq("id", row.id).eq("status", "SYNCING").eq("updated_at", owner);
+        .eq("id", row.id).eq("status", "SYNCING").eq("updated_at", owner)
+        .select("id").maybeSingle();
       if (completionError) throw completionError;
-      archived++;
+      if (completed) archived++;
     } catch {
       const { error: failure } = await admin.from("tributary_drive_sync_items")
         .update({ status: attempts >= MAX_ATTEMPTS ? "FAILED" : "RETRY", last_error: "No se pudo verificar el documento o archivarlo en FINANZAS SII.", updated_at: new Date().toISOString() })
