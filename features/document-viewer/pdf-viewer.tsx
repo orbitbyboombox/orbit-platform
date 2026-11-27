@@ -3,17 +3,19 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function PdfViewer({ title, src, download, fallback }: {
+export function PdfViewer({ title, src, download, fallback, onClose }: {
   title: string;
   src: string;
   download: string;
   fallback: string;
+  onClose?: () => void;
 }) {
   const router = useRouter();
   const frame = useRef<HTMLIFrameElement>(null);
   const [message, setMessage] = useState("");
 
   function close() {
+    if (onClose) { onClose(); return; }
     // A direct launch or a link from outside ORBIT must stay inside the app.
     const referrer = document.referrer ? new URL(document.referrer) : null;
     if (referrer?.origin === window.location.origin && window.history.length > 1) router.back();

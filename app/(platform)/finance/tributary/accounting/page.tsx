@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ReceivedFeePdf } from "@/features/finance/components/received-fee-pdf";
 import { SiiReceivedFeeForm } from "@/features/finance/components/sii-received-fee-form";
 import { loadReceivedFees, receivedFeeReview } from "@/features/finance/sii-received-fees";
 import { notFound } from "next/navigation";
@@ -115,7 +116,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
             <summary className="cursor-pointer break-words text-sm">{fee.issuer_name} · Folio {fee.folio} · {clp.format(fee.gross)}</summary>
             <p className="mt-2 break-words text-sm">{fee.issuer_rut} · {fee.issued_on} · {receivedFeeReview(fee)}</p>
             <p className="text-sm">Retención {clp.format(fee.withheld)} · Líquido {clp.format(fee.net)}</p>
-            {fee.has_pdf && <a className="mt-2 inline-flex min-h-10 items-center text-sm font-semibold text-brand" href={`/api/finance/tributary/fees/${fee.id}`}>Descargar PDF</a>}
+            {fee.has_pdf && <ReceivedFeePdf id={fee.id} />}
           </details>)}
           {period.length === 7 && !closed && !periodEvents.error && <SiiReceivedFeeForm period={period} />}
         </>}
