@@ -38,6 +38,7 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
   const rows = documents ?? [];
   return (
     <main className="space-y-7" aria-label="Centro SII">
+      <Link href="/finance/tributary/accounting" className="inline-flex min-h-11 items-center rounded-xl border border-brand/40 px-4 text-sm font-semibold text-brand">Contabilidad Premium</Link>
       <header className="rounded-3xl border bg-card p-6 sm:p-8">
         <p className="text-xs font-semibold uppercase tracking-[.2em] text-brand">Finanzas · SII</p>
         <h1 className="mt-2 text-3xl font-semibold">Centro tributario</h1>
