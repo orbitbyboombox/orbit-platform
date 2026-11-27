@@ -93,8 +93,8 @@ export async function loadFinanceDashboardReadModel(
   financialTruthSource?:
     | Awaited<ReturnType<typeof loadFinancialTruth>>
     | Promise<Awaited<ReturnType<typeof loadFinancialTruth>>>,
-  options: { refreshReceivableNotifications?: boolean } = {},
   requestedPeriod?: string,
+  options: { refreshReceivableNotifications?: boolean } = {},
 ): Promise<FinanceDashboardReadModel> {
   const now = new Date();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(now);
