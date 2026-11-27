@@ -8,8 +8,11 @@ export async function GET(request: Request) {
   if (!secret || request.headers.get("authorization") !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+  if (process.env.TRIBUTARY_DRIVE_ARCHIVE_ENABLED !== "true") {
+    return NextResponse.json({ ok: true, enabled: false, selected: 0, archived: 0 }, { headers: { "Cache-Control": "no-store" } });
+  }
   try {
-    return NextResponse.json({ ok: true, ...await processTributaryDriveQueue() });
+    return NextResponse.json({ ok: true, enabled: true, ...await processTributaryDriveQueue() }, { headers: { "Cache-Control": "no-store" } });
   } catch {
     return NextResponse.json({ ok: false, error: "No se pudo procesar la cola tributaria." }, { status: 500 });
   }
