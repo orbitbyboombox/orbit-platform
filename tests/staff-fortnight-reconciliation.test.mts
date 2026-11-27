@@ -68,7 +68,7 @@ const q=async(sql:string)=> (await db.query(sql)).rows;
 let calc=(await q("select calculate_staff_monthly_settlement_legacy('20000000-0000-0000-0000-000000000001','2026-11-01') c"))[0].c;
 assert.equal(calc.workNet,32500);assert.equal(calc.details[0].hours,4.5);assert.deepEqual(calc.details[0].roles,['SUPERVISOR']);assert.equal(calc.details[0].blockName,'AM');
 assert.equal(Number((await q('select work_net from staff_monthly_accounts'))[0].work_net),32500);
-let preview=await q("select * from preview_staff_first_fortnight('2026-11-01')");assert.equal(Number(preview[0].work_net),32500);
+const preview=await q("select * from preview_staff_first_fortnight('2026-11-01')");assert.equal(Number(preview[0].work_net),32500);
 await db.exec("update event_staff_payments set total_internal_payment=65000");
 assert.equal(Number((await q('select work_net from staff_monthly_accounts'))[0].work_net),65000);
 await db.exec("insert into event_staff_settlement_adjustments values(gen_random_uuid(),'40000000-0000-0000-0000-000000000001',1000)");

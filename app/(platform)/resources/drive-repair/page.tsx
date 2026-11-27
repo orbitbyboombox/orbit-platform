@@ -29,7 +29,7 @@ export default async function DriveRepairPage({ searchParams }: { searchParams: 
   const { data: profile } = await client.from("profiles").select("role").eq("id", auth.user.id).single();
   if (!isAdministrativeRole(profile?.role)) redirect("/resources");
   const admin = createAdminClient();
-  const { data: pendingDocuments, error: pendingError } = await admin.from("documents").select("id").is("deleted_at", null).is("drive_file_id", null).in("document_type", ["PAYMENT_RECEIPT", "COMMERCIAL_DOCUMENT", "STAFF_EXPENSE_RECEIPT"]).order("id", { ascending: true }).limit(26);
+  const { data: pendingDocuments, error: pendingError } = await admin.from("documents").select("id").is("deleted_at", null).is("drive_file_id", null).in("document_type", ["PAYMENT_RECEIPT", "COMMERCIAL_DOCUMENT"]).order("id", { ascending: true }).limit(26);
   const { data: historicalDocuments, error: historicalError } = await admin.from("documents")
     .select("id").is("deleted_at", null).eq("drive_sync_status", "PENDING")
     .not("drive_file_id", "is", null)

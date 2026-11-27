@@ -367,13 +367,18 @@ insert into staff_training_assignments values('${training}','${event1}','${s1}',
       [q1.id],
     );
     console.log("PASS authorization");
+    type EmailIntent = {
+      payload: { period: { period_code: string }; monthly: Record<string, number> };
+      metadata: { email_status: string };
+      correlation_id: string;
+    };
     const intents = (
       await query(
         "select o.payload,n.metadata,n.correlation_id from staff_period_email_outbox o join internal_notifications n on n.id=o.notification_id",
       )
-    ).rows;
+    ).rows as EmailIntent[];
     const secondIntent = intents.find(
-      (row: any) => row.payload.period.period_code === "Q2",
+      (row) => row.payload.period.period_code === "Q2",
     );
     assert.ok(secondIntent);
     assert.equal(secondIntent.payload.monthly.workNet, 55000);
@@ -382,10 +387,10 @@ insert into staff_training_assignments values('${training}','${event1}','${s1}',
     assert.equal(secondIntent.payload.monthly.boletaGross, 64897);
     assert.match(secondIntent.correlation_id, /^staff-boleta-request:/);
     assert.ok(
-      intents.some((row: any) => row.payload.period.period_code === "MONTH"),
+      intents.some((row) => row.payload.period.period_code === "MONTH"),
     );
     assert.ok(
-      intents.every((row: any) => row.metadata.email_status === "PENDING"),
+      intents.every((row) => row.metadata.email_status === "PENDING"),
     );
     await query("select set_config('test.admin','false',false)");
     await db.exec("set role authenticated");

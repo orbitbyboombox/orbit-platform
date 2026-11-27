@@ -29,7 +29,7 @@ export async function repairAllPendingDocumentBackupsAction() {
   const client = createAdminClient();
   const { data, error } = await client.from("documents")
     .select("id").is("deleted_at", null).is("drive_file_id", null)
-    .in("document_type", ["PAYMENT_RECEIPT", "COMMERCIAL_DOCUMENT", "STAFF_EXPENSE_RECEIPT"])
+    .in("document_type", ["PAYMENT_RECEIPT", "COMMERCIAL_DOCUMENT"])
     .order("id", { ascending: true }).limit(26);
   if (error) throw error;
   const ids = (data ?? []).map((item) => item.id);

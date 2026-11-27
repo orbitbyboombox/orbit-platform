@@ -5,12 +5,13 @@ import test from "node:test";
 const source = (path: string) =>
   readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-test("platform navigation skips duplicate middleware auth and relies on protected layout", () => {
-  const middleware = source("middleware.ts");
+test("platform navigation refreshes the session and leaves the role lookup to the protected layout", () => {
+  const middleware = source("lib/supabase/middleware.ts");
   const layout = source("app/(platform)/layout.tsx");
   assert.match(middleware, /platformPagePrefixes/);
-  assert.match(middleware, /return NextResponse\.next\(\)/);
-  assert.match(layout, /client\.auth\.getUser\(\)/);
+  assert.match(middleware, /supabase\.auth\.getUser\(\)/);
+  assert.ok(middleware.indexOf("if(platformPagePrefixes.some") < middleware.indexOf('supabase.from("profiles")'));
+  assert.match(layout, /getSupabaseRenderUser\(\)/);
   assert.match(layout, /profiles/);
 });
 
