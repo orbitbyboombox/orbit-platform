@@ -95,10 +95,14 @@ jobs:
           # same function contract without changing production history.
           path = Path('supabase/migrations/0050_manual_reservation_atomic_core.sql')
           if path.exists(): path.unlink()
-          # CRM bootstrap files are independent of Calendar; their historic
-          # data-repair function is the source of the prepared-statement error.
-          # Calendar dependencies are created by the later calendar migrations.
-          for name in ('0054_crm_customer_first_foundation.sql', '0055_manual_reservation_crm_lookup.sql', '0056_reservation_execution_diagnostics.sql'):
+          # Keep the real CRM tables from 0054 because later migrations depend
+          # on them, but omit only its data-repair functions and seed call that
+          # trigger the historical prepared-statement failure. Later CRM
+          # function replacements are unrelated to Calendar and are omitted.
+          path = Path('supabase/migrations/0054_crm_customer_first_foundation.sql')
+          source = path.read_text(); marker = 'create or replace function public.audit_crm_integrity()'
+          if marker in source: path.write_text(source[:source.index(marker)] + 'commit;\n')
+          for name in ('0055_manual_reservation_crm_lookup.sql', '0056_reservation_execution_diagnostics.sql'):
               path = Path('supabase/migrations') / name
               if path.exists(): path.unlink()
           source = Path('features/portal-authentication/paper-block-storage.sql').read_text()
