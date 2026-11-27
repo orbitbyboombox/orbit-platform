@@ -35,11 +35,14 @@ export async function loadMonthlyAccountingStaff(period: string) {
         rows: transfers.map(r => [r.id, byPeriod.get(r.period_id)?.account_id ?? null, byPeriod.get(r.period_id)?.period_code ?? null, r.paid_on, r.tax_period, r.amount, r.gross_amount, r.withholding_rate, r.withholding_amount, r.receipt_document_id, r.receipt_document_id ? "Asociado" : "Sin comprobante asociado"]) },
     ],
     attachments,
+    missingBoletas: settlements.filter(row => !row.boleta_document_id).map(row => row.id),
+    missingReceipts: transfers.filter(row => !row.receipt_document_id).map(row => row.id),
   };
 }
 
 export async function readMonthlyAccountingAttachments(
   staffIds: Map<string, string>, expenseIds: string[], saleIds: string[],
+  missingBoletas: string[], missingReceipts: string[],
 ) {
   const admin = createAdminClient();
   const fields = "id,storage_bucket,storage_path,mime_type";
@@ -57,20 +60,35 @@ export async function readMonthlyAccountingAttachments(
     ...(sales.data ?? []).map(r => ({ ...r, folder: "Ventas" })),
   ];
   const files: { path: string; bytes: Uint8Array }[] = [];
-  const manifest: string[][] = [];
+  const manifest: string[][] = [
+    ...missingBoletas.map(id => ["Boletas-Staff", id, "Liquidación sin boleta asociada", ""]),
+    ...missingReceipts.map(id => ["Pagos-Staff", id, "Pago sin comprobante asociado", ""]),
+  ];
   const seen = new Set<string>();
   let remaining = 2_500_000;
   for (const row of candidates) {
     if (seen.has(row.id)) continue;
     seen.add(row.id);
-    const ext = ({ "application/pdf": "pdf", "application/xml": "xml", "text/xml": "xml", "image/jpeg": "jpg", "image/png": "png" } as Record<string, string>)[row.mime_type ?? ""];
-    if (!ext || !row.storage_bucket || !row.storage_path || files.length >= 30 || remaining <= 0) {
-      manifest.push([row.folder, row.id, "Omitido: formato, ubicación o límite del ZIP", ""]);
+    if (!row.storage_bucket || !row.storage_path) {
+      manifest.push([row.folder, row.id, "Omitido: ubicación de almacenamiento ausente", ""]);
+      continue;
+    }
+    if (files.length >= 30 || remaining <= 0) {
+      manifest.push([row.folder, row.id, "Omitido: límite del ZIP", ""]);
       continue;
     }
     const response = await admin.storage.from(row.storage_bucket).download(row.storage_path);
-    if (response.error || !response.data || !response.data.size || response.data.size > remaining) {
-      manifest.push([row.folder, row.id, "Omitido: respaldo inaccesible o fuera de límite", ""]);
+    if (response.error || !response.data || !response.data.size) {
+      manifest.push([row.folder, row.id, "Omitido: respaldo inaccesible o vacío", ""]);
+      continue;
+    }
+    const ext = ({ "application/pdf": "pdf", "application/xml": "xml", "text/xml": "xml", "image/jpeg": "jpg", "image/png": "png" } as Record<string, string>)[row.mime_type || response.data.type];
+    if (!ext) {
+      manifest.push([row.folder, row.id, "Omitido: formato sin identificar o no admitido", ""]);
+      continue;
+    }
+    if (response.data.size > remaining) {
+      manifest.push([row.folder, row.id, "Omitido: tamaño supera el espacio disponible en el ZIP", ""]);
       continue;
     }
     const bytes = new Uint8Array(await response.data.arrayBuffer());
