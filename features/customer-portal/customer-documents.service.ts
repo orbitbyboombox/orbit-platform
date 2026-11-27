@@ -68,7 +68,7 @@ export async function loadCustomerDocuments(projectId: string): Promise<Customer
     if (error) throw error;
     const { data: storedDocuments, error: storedError } = await admin
       .from("documents")
-      .select("id,document_type,original_filename,mime_type,created_at,updated_at,version,is_current,storage_bucket,storage_path,deleted_at")
+      .select("id,document_type,drive_file_id,original_filename,mime_type,created_at,updated_at,version,is_current,storage_bucket,storage_path,deleted_at")
       .eq("project_id", projectId)
       .is("deleted_at", null)
       .or("document_type.neq.PHOTO_STRIP_DESIGN,is_current.eq.true");
@@ -78,7 +78,11 @@ export async function loadCustomerDocuments(projectId: string): Promise<Customer
       const folder = folders?.find((item) => item.destination_key.endsWith(definition.suffix));
       return folder?.external_folder_id ? [{ ...definition, id: folder.external_folder_id }] : [];
     });
-    const storageFiles: CustomerDriveDocument[] = (storedDocuments ?? []).filter((item) => item.storage_bucket && item.storage_path).map((item) => ({
+    const privateDriveIds = new Set((storedDocuments ?? [])
+      .filter(item => item.document_type === "STAFF_EXPENSE_RECEIPT")
+      .map(item => item.drive_file_id));
+    const storageFiles: CustomerDriveDocument[] = (storedDocuments ?? []).filter((item) =>
+      item.document_type !== "STAFF_EXPENSE_RECEIPT" && item.storage_bucket && item.storage_path).map((item) => ({
       id: item.id,
       name: item.original_filename || item.document_type.replaceAll("_", " "),
       category: item.document_type.includes("DESIGN") ? "DESIGN" : item.document_type.includes("PHOTO") ? "PHOTOS" : item.document_type === "EXTERNAL_TAX_DOCUMENT" || item.document_type.includes("PAYMENT") ? "FINANCIAL" : item.document_type.includes("AGREEMENT") || item.document_type.includes("CONTRACT") ? "CONTRACTS" : "OTHER",
@@ -100,7 +104,7 @@ export async function loadCustomerDocuments(projectId: string): Promise<Customer
     );
     const files = folderFiles.flatMap(({ folder, files: entries }) =>
       entries
-        .filter((entry) => entry.mimeType !== "application/vnd.google-apps.folder")
+        .filter((entry) => entry.mimeType !== "application/vnd.google-apps.folder" && !privateDriveIds.has(entry.id))
         .map((entry) => ({
           id: entry.id,
           name: entry.name,

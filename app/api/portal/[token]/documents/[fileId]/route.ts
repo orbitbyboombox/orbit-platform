@@ -16,7 +16,7 @@ export async function GET(
 
   const file = portal.customerDocuments.files.find((item) => item.id === fileId);
   const admin = createAdminClient();
-  const { data: stored } = await admin.from("documents").select("id,storage_bucket,storage_path,drive_file_id,original_filename,mime_type,is_current,deleted_at").eq("id", fileId).eq("project_id", portal.access.project_id).is("deleted_at", null).maybeSingle();
+  const { data: stored } = await admin.from("documents").select("id,storage_bucket,storage_path,drive_file_id,original_filename,mime_type,is_current,deleted_at").eq("id", fileId).eq("project_id", portal.access.project_id).neq("document_type", "STAFF_EXPENSE_RECEIPT").is("deleted_at", null).maybeSingle();
   if (!file && !stored) return NextResponse.json({ message: "El documento no pertenece a este evento." }, { status: 404 });
 
   const download = new URL(request.url).searchParams.get("download") === "1";
