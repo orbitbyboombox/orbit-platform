@@ -31,8 +31,8 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
     loadReceivedFees(period).catch(() => null),
   ]);
   const saved = {
-    Compras: (rows ?? []).filter(row => row.register === "Compras").map(row => ({ ...row.snapshot, expenseCategory: row.expense_category })),
-    Ventas: (rows ?? []).filter(row => row.register === "Ventas").map(row => row.snapshot),
+    Compras: (rows ?? []).filter(row => row.register === "Compras").map(row => ({ ...row.snapshot, expenseCategory: row.expense_category, evidence: row.evidence })),
+    Ventas: (rows ?? []).filter(row => row.register === "Ventas").map(row => ({ ...row.snapshot, evidence: row.evidence })),
   };
   const events = (periodEvents.data ?? []) as { action: string }[];
   const closed = events.find(event => ["CLOSED", "REOPENED"].includes(event.action))?.action === "CLOSED";

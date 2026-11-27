@@ -1,10 +1,13 @@
 "use client";
 
+import type { RcvEvidence } from "../sii-rcv-report";
 import { useState, useTransition, type ChangeEvent } from "react";
 import { assignRcvPurchaseCategory, storeRcvForReview } from "../sii-rcv-actions";
 import { normalizeRcv, parseSiiRcv, readSiiRcvFilename } from "../sii-rcv";
 
-type Register = ReturnType<typeof parseSiiRcv>;
+type ParsedRegister = ReturnType<typeof parseSiiRcv>;
+type DisplayDocument = ParsedRegister["documents"][number] & { evidence?: RcvEvidence };
+type Register = { kind: ParsedRegister["kind"]; documents: DisplayDocument[] };
 const formatMoney = new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP" });
 const amount = (value: number | null) => value === null ? "Sin informar" : formatMoney.format(value);
 
@@ -154,6 +157,16 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod }
                 "Total": amount(doc.total),
               }).map(([label, value]) => <div key={label}><dt className="text-muted">{label}</dt><dd>{value}</dd></div>)}
             </dl>
+            {doc.evidence && <div className="mt-3 space-y-2 border-t pt-3 text-sm">
+              <p><strong>Finanzas:</strong> {doc.evidence.match_status === "MATCHED" ? "Coincidencia interna"
+                : doc.evidence.match_status === "AMBIGUOUS" ? "Coincidencias múltiples · revisar" : "Sin coincidencia exacta"}</p>
+              {doc.evidence.paid !== null && <p>Pagado registrado: {amount(doc.evidence.paid)} · Saldo interno: {amount(doc.evidence.balance)}</p>}
+              {doc.evidence.project_id && <div className="flex flex-wrap gap-3">
+                <a className="text-brand" href={`/projects/${doc.evidence.project_id}?eventTab=FINANCE`}>Event 360°</a>
+                {doc.evidence.pdf_id && <a className="text-brand" href={`/projects/${doc.evidence.project_id}/documents/${doc.evidence.pdf_id}/viewer`}>PDF original</a>}
+                {doc.evidence.xml_id && <a className="text-brand" href={`/api/projects/${doc.evidence.project_id}/documents/${doc.evidence.xml_id}?download=1`}>XML original</a>}
+              </div>}
+            </div>}
             {kind === "Compras" && categoryPeriod && !registers.Compras && <PurchaseCategoryForm period={categoryPeriod} doc={doc} />}
           </details>
         ))}
