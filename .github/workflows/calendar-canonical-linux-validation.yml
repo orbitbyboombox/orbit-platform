@@ -142,6 +142,7 @@ jobs:
           count="$(find "$isolated_migrations" -maxdepth 1 -type f -name '*.sql' | wc -l | tr -d ' ')"
           test "$count" -gt 300
           sha256sum "$isolated_migrations/0001_production_backbone.sql" "$isolated_migrations/20261127190000_canonical_calendar_update.sql" > "$GITHUB_WORKSPACE/.ci-isolated-migrations.sha256"
+          printf '%s\n' '-- CI-only no-op migration; real history is applied below with psql.' > supabase/migrations/0000_ci_placeholder.sql
           supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,supavisor
       - name: Apply repository migrations with PostgreSQL psql
         shell: bash
