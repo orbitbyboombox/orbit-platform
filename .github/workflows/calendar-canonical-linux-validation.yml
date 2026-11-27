@@ -85,7 +85,7 @@ jobs:
           # column before that consumer. The original migration content is
           # unchanged and remains idempotent when production applies it.
           mv supabase/migrations/20260925180000_event_time_phase_a_production_contract.sql \
-            supabase/migrations/0000_event_time_phase_a_production_contract.sql
+            /tmp/20260925180000_event_time_phase_a_production_contract.sql
           python3 - <<'PY'
           from pathlib import Path
           path = Path('supabase/migrations/20261007200500_fix_staff_settlement_record_access.sql')
@@ -142,6 +142,10 @@ jobs:
           db_container="$(docker ps --filter 'name=supabase_db_' --format '{{.Names}}' | head -n 1)"
           test -n "$db_container"
           while IFS= read -r migration; do
+            if [[ "$(basename "$migration")" == "0259_enforce_staff_call_exactly_60_minutes.sql" ]]; then
+              echo 'Applying isolated dependency before 0259: 20260925180000_event_time_phase_a_production_contract.sql'
+              docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < /tmp/20260925180000_event_time_phase_a_production_contract.sql
+            fi
             echo "Applying isolated migration: $migration"
             if ! docker exec -i "$db_container" psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "$migration"; then
               echo "::error::Isolated PostgreSQL migration failed: $migration"
