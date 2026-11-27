@@ -23,22 +23,23 @@ export function NavigationList({ onNavigate, compact, hiddenNavigation = [], ico
   const pathname = usePathname();
   const {isEnabled}=useModuleManager();
   return (
-    <nav aria-label="Navegación principal" className="space-y-1">
+    <nav aria-label="Navegación principal" className="space-y-1.5">
       {navigationItems.filter(item=>!hiddenNavigation.includes(item.key)&&(item.href==="/settings"||isEnabled(item.module))).map(({ label, href, icon: Icon }) => {
         const isActive = href === "/" ? pathname === href : pathname.startsWith(href);
         return <Link
           aria-current={isActive ? "page" : undefined}
+          aria-label={label}
           className={cn(
-            "group flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-muted transition-all hover:bg-accent/75 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60",
+            "group flex min-h-11 w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-muted transition-all hover:bg-[var(--shell-surface)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60",
             compact && (iconOnly ? "justify-center" : "justify-center lg:justify-start"),
             iconOnly && "justify-center px-0",
-            isActive && "border border-brand/20 bg-[linear-gradient(90deg,rgba(255,149,0,.20),rgba(255,149,0,.08))] text-foreground shadow-[0_10px_30px_rgba(255,149,0,.08)]",
+            isActive && "bg-[var(--shell-highlight)] text-foreground ring-1 ring-inset ring-brand/25",
           )}
           href={href}
           key={label}
           onClick={onNavigate}
         >
-          <Icon aria-hidden="true" className={cn("size-[18px] shrink-0 transition-colors group-hover:text-brand", isActive && "text-brand")} />
+          <Icon aria-hidden="true" className={cn("size-[18px] shrink-0 transition-colors group-hover:text-[var(--shell-brand)]", isActive && "text-[var(--shell-brand)]")} />
           <span className={cn(iconOnly ? "hidden" : compact ? "hidden lg:inline" : undefined)}>{label}</span>
         </Link>;
       })}
@@ -49,7 +50,7 @@ export function NavigationList({ onNavigate, compact, hiddenNavigation = [], ico
 export function Sidebar({ navigationOrder, hiddenNavigation }: Pick<NavigationListProps,"navigationOrder"|"hiddenNavigation">) {
   const [collapsed, setCollapsed] = useState(false);
   return (
-    <aside className={cn("peer fixed inset-y-0 left-0 z-30 hidden h-dvh min-h-0 w-20 overflow-hidden border-r border-border/70 bg-[#090c11]/97 shadow-[14px_0_48px_rgba(0,0,0,.2)] backdrop-blur-xl transition-[width] duration-200 md:flex md:flex-col", collapsed ? "lg:w-20" : "lg:w-[15.25rem]")} data-collapsed={collapsed}>
+    <aside className={cn("peer fixed inset-y-0 left-0 z-30 hidden h-dvh min-h-0 w-20 overflow-hidden border-r border-white/10 bg-[#101114]/97 shadow-[14px_0_48px_rgba(0,0,0,.28)] backdrop-blur-xl transition-[width] duration-200 md:flex md:flex-col", collapsed ? "lg:w-20" : "lg:w-[15.25rem]")} data-collapsed={collapsed}>
       <div className="relative flex h-[5.75rem] items-center justify-center border-b border-border/70 px-3">
       <Link aria-label="Ir al Dashboard" className="flex h-full w-full items-center justify-center px-1 lg:px-2" href="/operations">
         <BrandLogo className={cn("w-full max-w-[11rem]", collapsed ? "hidden" : "hidden lg:block")} surface="dark" />
