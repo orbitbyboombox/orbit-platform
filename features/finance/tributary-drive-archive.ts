@@ -87,11 +87,14 @@ export function createTributaryDriveArchive(token: string, transport: typeof fet
       }
       return file.id;
     },
-    async archiveShortcut(input: { id: string; parentId: string; targetId: string; name: string }) {
+    async archiveShortcut(input: { id: string; parentId: string; targetId: string; name: string; expectedChecksum?: string }) {
       if (![input.id, input.parentId, input.targetId].every(id => allowedId.test(id))) throw new Error("Identificador de Drive inválido.");
       const target = await request<DriveFile>(`files/${input.targetId}`, { fields: "id,mimeType,trashed,sha256Checksum", supportsAllDrives: "true" });
       if (target.id !== input.targetId || target.mimeType !== "application/pdf" || target.trashed) {
         throw new Error("El PDF original no está disponible o no corresponde al tipo esperado.");
+      }
+      if (input.expectedChecksum !== undefined && (!/^[a-f0-9]{64}$/i.test(input.expectedChecksum) || target.sha256Checksum?.toLowerCase() !== input.expectedChecksum.toLowerCase())) {
+        throw new Error("La huella SHA-256 del PDF original no coincide con la esperada.");
       }
       const fields = "id,name,mimeType,trashed,parents,shortcutDetails(targetId)";
       const query = { fields, supportsAllDrives: "true" };
