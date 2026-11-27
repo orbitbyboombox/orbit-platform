@@ -173,9 +173,33 @@ export class GoogleCalendarLive {
       return { ok: false, record: { ...baseRecord, status: "ERROR" }, error: { code: "CALENDAR_SCOPE_MISSING", message: "Google Calendar no fue concedido.", retryable: false } };
     }
 
-    const existing = await this.repository.findByOrbitEventId(baseRecord.orbitEventId);
+    let existing = await this.repository.findByOrbitEventId(baseRecord.orbitEventId);
     console.info("[calendar-time-sync]", { stage: "CALENDAR_TIME_SYNC_EXISTING_EVENT", project_id: input.planId, external_event_id: existing?.googleEventId ?? null });
     const payload = mapOperationalEventToCalendar(input);
+    const destination = this.provider.calendarId;
+    if (operation === "UPSERT" && existing?.googleEventId && !existing.calendarId
+      && destination && this.provider.findEventsByOrbitEventId && this.repository.bindMissingCalendar) {
+      const googleEventId = existing.googleEventId;
+      try {
+        const matches = await this.provider.findEventsByOrbitEventId(baseRecord.orbitEventId);
+        if (matches.length === 1 && matches[0].id === googleEventId) {
+          const remote = await this.provider.getEvent(googleEventId);
+          const privateId = remote.extendedProperties?.private?.orbitEventId;
+          const exactIdLine = remote.description?.split("\n").some(line => line.trim() === `ORBIT Event ID: ${baseRecord.orbitEventId}`);
+          if (remote.id === googleEventId && remote.status === "confirmed" && remote.etag && remote.updated
+            && (privateId === undefined || privateId === baseRecord.orbitEventId)
+            && (privateId === baseRecord.orbitEventId || exactIdLine)) {
+            if (await this.repository.bindMissingCalendar(baseRecord.orbitEventId, googleEventId, destination)) {
+              existing = { ...existing, calendarId: destination, status: "UPDATE_REQUIRED" };
+            } else {
+              return { ok: false, record: existing, error: { code: "CALENDAR_DESTINATION_UNVERIFIED", message: "El vínculo Calendar cambió mientras se verificaba el calendario. Reintenta.", retryable: true } };
+            }
+          }
+        }
+      } catch {
+        return { ok: false, record: existing, error: { code: "CALENDAR_DESTINATION_UNVERIFIED", message: "No se pudo verificar el destino del evento existente en Google Calendar.", retryable: true } };
+      }
+    }
     if (existing?.googleEventId && (!existing.calendarId || (this.provider.calendarId && existing.calendarId !== this.provider.calendarId))) {
       const record = await this.repository.save({ ...existing, status: "UPDATE_REQUIRED", errorCode: "CALENDAR_DESTINATION_UNVERIFIED", errorMessage: "Destino de Google Calendar ausente o distinto; sincronización detenida para evitar mover o duplicar eventos." });
       return { ok: false, record, error: { code: "CALENDAR_DESTINATION_UNVERIFIED", message: record.errorMessage ?? "Destino de Calendar requiere validación.", retryable: false } };

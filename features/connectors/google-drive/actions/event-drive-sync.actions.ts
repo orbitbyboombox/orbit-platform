@@ -19,7 +19,7 @@ export async function reconcileEventDriveAction(projectId: string) {
     revalidatePath(`/projects/${projectId}`);
     return {
       ok: result.pending === 0,
-      message: `Carpeta verificada. Documentos sincronizados: ${result.synced} (${result.reused} reutilizados). Pendientes: ${result.pending}.${result.linkedPending ? ` Referencias existentes por revisar: ${result.linkedPending}.` : ""}`,
+      message: `Carpeta verificada. Documentos sincronizados: ${result.synced} (${result.reused} reutilizados). Pendientes sin vínculo: ${result.pending - result.linkedPending}.${result.linkedPending ? ` Referencias existentes por revisar: ${result.linkedPending}.` : ""}`,
       failures: result.failures,
     };
   } catch (error) {

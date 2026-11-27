@@ -5,6 +5,7 @@ import { usesNOVAGoogleCore } from "@/features/connectors/google-workspace/appli
 export interface GoogleCalendarSyncRepository {
   findByOrbitEventId(orbitEventId: string): Promise<GoogleCalendarSyncRecord | null>;
   save(record: GoogleCalendarSyncRecord): Promise<GoogleCalendarSyncRecord>;
+  bindMissingCalendar?(orbitEventId: string, googleEventId: string, calendarId: string): Promise<boolean>;
 }
 
 export class SupabaseGoogleCalendarSyncRepository implements GoogleCalendarSyncRepository {
@@ -15,6 +16,15 @@ export class SupabaseGoogleCalendarSyncRepository implements GoogleCalendarSyncR
     if (!data) return null;
     const nova = usesNOVAGoogleCore();
     return { orbitEventId: data.orbit_event_id, sourceEventId: data.project_id, planId: data.project_id, status: data.status, googleEventId: (nova ? data.nova_external_event_id : data.external_event_id) ?? undefined, googleEventUrl: (nova ? data.nova_external_url : data.external_url) ?? undefined, calendarId: nova ? data.nova_calendar_id ?? undefined : undefined, sourceFingerprint: data.payload_hash ?? "", lastSynchronization: data.last_synced_at ?? undefined, errorMessage: data.last_error?.message, currentPayloadHash: data.current_payload_hash ?? undefined, lastSyncedPayloadHash: data.last_synced_payload_hash ?? undefined, retryCount: data.retry_count ?? 0, nextRetryAt: data.next_retry_at ?? undefined, syncStartedAt: data.sync_started_at ?? undefined, errorCode: data.last_error_code ?? undefined, approvedRemotePayloadHash: data.approved_remote_payload_hash ?? undefined, approvedRemoteSourceHash: data.approved_remote_source_hash ?? undefined, approvedRemoteEtag: data.approved_remote_etag ?? undefined, approvedRemoteSnapshot: data.approved_remote_snapshot ?? undefined, approvedRemoteAt: data.approved_remote_at ?? undefined, approvedRemoteBy: data.approved_remote_by ?? undefined } as GoogleCalendarSyncRecord;
+  }
+  async bindMissingCalendar(orbitEventId: string, googleEventId: string, calendarId: string): Promise<boolean> {
+    if (!usesNOVAGoogleCore()) return false;
+    const { data, error } = await this.client.from("calendar_sync")
+      .update({ nova_calendar_id: calendarId, status: "UPDATE_REQUIRED" })
+      .eq("orbit_event_id", orbitEventId).eq("nova_external_event_id", googleEventId)
+      .is("nova_calendar_id", null).select("id").maybeSingle();
+    if (error) throw error;
+    return Boolean(data);
   }
   async save(record: GoogleCalendarSyncRecord): Promise<GoogleCalendarSyncRecord> {
     const nova = usesNOVAGoogleCore();
