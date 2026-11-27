@@ -4,7 +4,7 @@ import { SiiReceivedFeeForm } from "@/features/finance/components/sii-received-f
 import { loadReceivedFees, receivedFeeReview } from "@/features/finance/sii-received-fees";
 import { notFound } from "next/navigation";
 import { SiiRcvPreview } from "@/features/finance/components/sii-rcv-preview";
-import { loadRcvReport, loadStaffPeriodAmounts, siiCompanyRut, summarizeRcvAmounts } from "@/features/finance/sii-rcv-report";
+import { loadRcvReport, loadStaffPeriodAmounts, siiCompanyRut, summarizeRcvAmounts, periodBounds } from "@/features/finance/sii-rcv-report";
 import { recordRcvPeriodEvent } from "@/features/finance/sii-rcv-actions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
@@ -22,16 +22,19 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
     ? selected.year + (selected.month && /^(0[1-9]|1[0-2])$/.test(selected.month) ? "-" + selected.month : "")
     : selected.period ?? today;
   const period = /^[1-9]\d{3}(?:-(?:0[1-9]|1[0-2]))?$/.test(input) ? input : today;
-  const module = selected.libro === "compras" || selected.libro === "ventas" ? selected.libro : ["honorarios", "importar", "cierre"].includes(selected.module ?? "") ? selected.module : "home";
+  const module = selected.libro === "compras" || selected.libro === "ventas" ? selected.libro : ["honorarios", "importar", "cierre", "historial"].includes(selected.module ?? "") ? selected.module : "home";
   const showRcv = module === "home" || module === "compras" || module === "ventas";
-  const [rows, periodEvents, staffAmounts, fees] = await Promise.all([
+  const bounds = periodBounds(period);
+  const [rows, periodEvents, staffAmounts, fees, imports] = await Promise.all([
     showRcv ? loadRcvReport(period).catch(() => null) : Promise.resolve([]),
 
     period.length === 7 ? createAdminClient().from("sii_rcv_period_events" as never).select("action").eq("company_rut", siiCompanyRut)
       .eq("period", `${period}-01`).order("id", { ascending: false }) : Promise.resolve({ data: [], error: null }),
     module === "home" || module === "honorarios" ? loadStaffPeriodAmounts(period).catch(() => null) : Promise.resolve(null),
     module === "honorarios" ? loadReceivedFees(period).catch(() => null) : Promise.resolve([]),
+    module === "historial" ? createAdminClient().from("sii_rcv_imports" as never).select("id,register,period,source_name,imported_at").eq("company_rut", siiCompanyRut).gte("period",bounds.start).lt("period",bounds.end).order("imported_at",{ascending:false}).limit(100) : Promise.resolve({data:[],error:null}),
   ]);
+  const importRows = (imports.data ?? []) as {id:string;register:string;period:string;source_name:string;imported_at:string}[];
   const saved = {
     Compras: (rows ?? []).filter(row => row.register === "Compras").map(row => ({ ...row.snapshot, expenseCategory: row.expense_category, evidence: row.evidence })),
     Ventas: (rows ?? []).filter(row => row.register === "Ventas").map(row => ({ ...row.snapshot, evidence: row.evidence })),
@@ -63,12 +66,13 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
         </label>
         <button className="min-h-11 rounded-lg border px-4 text-sm">Consultar período</button>
       </form>
-      <nav aria-label="Contabilidad" className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      <nav aria-label="Contabilidad" className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
         {[
           {id:"compras",label:"Libro de Compras",href:`?period=${period}&libro=compras`},
           {id:"ventas",label:"Libro de Ventas",href:`?period=${period}&libro=ventas`},
           {id:"honorarios",label:"Honorarios",href:`?period=${period}&module=honorarios`},
           {id:"importar",label:"Importar / actualizar CSV",href:`?period=${period}&module=importar`},
+          {id:"historial",label:"Historial de importaciones",href:`?period=${period}&module=historial`},
           {id:"cierre",label:"Cierre contable",href:`?period=${period}&module=cierre`},
         ].map(item => <Link key={item.id} href={item.href} aria-current={module===item.id?"page":undefined} className={`flex min-h-14 items-center rounded-xl border bg-card p-3 text-sm font-semibold transition hover:border-brand/60 ${module===item.id?"border-brand text-brand":"text-muted"}`}>{item.label}</Link>)}
       </nav>
@@ -114,6 +118,7 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
           {!closed && !ownerZero && <button name="action" value="OWNER_ZERO_FEES" className="min-h-10 rounded-lg border px-3 text-sm">Registrar 0 boletas informadas</button>}
         </form>
       </section>}
+      {module === "historial" && <section className="rounded-2xl border bg-card p-4 sm:p-6"><h2 className="text-xl font-semibold">Historial de importaciones</h2><p className="mt-2 text-sm text-muted">Últimos 100 archivos originales guardados del período seleccionado.</p>{imports.error ? <p role="alert" className="mt-4 text-sm">No se pudo consultar el historial.</p> : importRows.length ? <ul className="mt-4 divide-y">{importRows.map(item=><li key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div className="min-w-0"><p className="font-semibold">{item.register} · {item.period.slice(0,7)}</p><p className="break-all text-xs text-muted">{item.source_name}</p><p className="text-xs text-muted">{new Intl.DateTimeFormat("es-CL",{dateStyle:"short",timeStyle:"short",timeZone:"America/Santiago"}).format(new Date(item.imported_at))}</p></div><Link href={`?period=${item.period.slice(0,7)}&libro=${item.register.toLowerCase()}`} className="text-sm font-semibold text-brand">Abrir libro →</Link></li>)}</ul> : <p className="mt-4 text-sm text-muted">No hay importaciones guardadas en este período.</p>}</section>}
       {module === "cierre" && periodEvents.error && <p role="alert">No se pudo consultar el estado del período.</p>}
       {module === "cierre" && period.length !== 7 && <p className="rounded-xl border p-4 text-sm text-muted">Selecciona un mes específico para gestionar su cierre.</p>}
       {module === "honorarios" && <section id="honorarios" className="min-w-0 scroll-mt-20 space-y-3 rounded-xl border bg-card p-4">
