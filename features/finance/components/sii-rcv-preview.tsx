@@ -45,6 +45,8 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, 
   const [query, setQuery] = useState("");
   const [month, setMonth] = useState("");
   const [type, setType] = useState("");
+  const [category, setCategory] = useState("");
+  const [match, setMatch] = useState("");
   const [error, setError] = useState("");
   const [source, setSource] = useState<{ file: File; kind: Register["kind"] } | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -67,6 +69,8 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, 
   const results = documents.filter(doc =>
     (!month || doc.issued.startsWith(month))
     && (!type || doc.type === type)
+    && (!category || (doc.expenseCategory || "PENDING") === category)
+    && (!match || (doc.evidence?.match_status ?? "PENDING") === match)
     && normalizeRcv([doc.company, doc.rut, doc.folio, doc.issued, doc.total, amount(doc.total)].join(" ")).includes(normalizeRcv(query)),
   ).sort((left, right) => right.issued.localeCompare(left.issued) || left.company.localeCompare(right.company, "es") || left.folio.localeCompare(right.folio, "es", { numeric: true }));
 
@@ -81,6 +85,12 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, 
     if (!file) return;
     setError("");
     setSource(null);
+    setRegisters({});
+    setStoredPeriod("");
+    setPage(1);
+    setQuery("");
+    setCategory("");
+    setMatch("");
     setConfirmed(false);
     setNotice("");
     try {
@@ -124,7 +134,7 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, 
       {storedPeriod && <a className="inline-flex min-h-11 items-center text-sm font-semibold text-brand" href={`?period=${storedPeriod}&libro=${kind.toLowerCase()}#libros`}>Consultar período {storedPeriod}</a>}
       {mode === "import" && <div className="flex flex-wrap gap-2" aria-label="Registro">
         {(["Compras", "Ventas"] as const).map(label => (
-          <button key={label} type="button" aria-pressed={kind === label} onClick={() => { setKind(label); setType(""); setMonth(""); }}
+          <button key={label} type="button" aria-pressed={kind === label} onClick={() => { setKind(label); setType(""); setMonth(""); setPage(1); setCategory(""); setMatch(""); }}
             className="min-h-11 rounded-xl border px-4 text-sm font-semibold aria-pressed:border-brand aria-pressed:text-brand">
             {label} · {registers[label]?.documents.length ?? saved[label].length}
           </button>
@@ -147,12 +157,12 @@ export function SiiRcvPreview({ saved, initialBook = "Compras", categoryPeriod, 
             </select>
           </label>
         </div>
-        <p className="text-sm text-muted" aria-live="polite">{results.length} documentos</p>
+        {mode === "book" && <div className="grid gap-3 sm:grid-cols-2">{kind === "Compras" && <label className="text-sm">Categoría<select value={category} onChange={event=>{setCategory(event.target.value);setPage(1)}} className="mt-1 block w-full rounded-lg border bg-background p-2"><option value="">Todas</option><option value="PENDING">Por revisar</option>{Object.entries(categories).map(([key,label])=><option key={key} value={key}>{label}</option>)}</select></label>}<label className="text-sm">Conciliación<select value={match} onChange={event=>{setMatch(event.target.value);setPage(1)}} className="mt-1 block w-full rounded-lg border bg-background p-2"><option value="">Todas</option><option value="MATCHED">Coincidencia interna</option><option value="PENDING">Sin coincidencia</option><option value="AMBIGUOUS">Coincidencias múltiples</option></select></label></div>}
+        <p className="text-sm text-muted" aria-live="polite">{results.length} documentos · mostrando {visible.length}</p>
+        {!results.length && <p className="rounded-xl border p-4 text-sm text-muted">No se encontraron documentos con estos filtros.</p>}
         {visible.map((doc, index) => (
           <details key={`${doc.key}-${index}`} className="rounded-xl border p-3">
-            <summary className="cursor-pointer break-words text-sm">
-              <strong>{doc.company || doc.rut}</strong> · {doc.type} · Folio {doc.folio} · {doc.issued} · {amount(doc.total)}
-            </summary>
+            <summary className="cursor-pointer break-words text-sm"><span className="inline-grid w-[94%] min-w-0 gap-1 align-middle sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto] sm:items-center"><span className="min-w-0"><strong className="block break-words">{doc.company || doc.rut}</strong><span className="text-xs text-muted">{doc.type} · Folio {doc.folio}</span></span><span className="text-xs text-muted">{doc.issued}{kind === "Compras" && <span className="block">{doc.expenseCategory ? categories[doc.expenseCategory as keyof typeof categories] ?? doc.expenseCategory : "Por revisar"}</span>}</span><strong className="tabular-nums sm:text-right">{amount(doc.total)}</strong></span></summary>
             {doc.duplicate && <p className="mt-2 text-sm text-danger">Identificador repetido. Requiere revisión.</p>}
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
               {Object.entries({
