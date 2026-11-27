@@ -38,6 +38,9 @@ begin
   select action into prior from public.sii_rcv_period_events
     where company_rut = p_company and period = p_period and action in ('CLOSED','REOPENED')
     order by id desc limit 1;
+  if p_action = 'CLOSED' and p_period >= date_trunc('month', now() at time zone 'America/Santiago')::date then
+    raise exception 'El mes aún está en curso.';
+  end if;
   if (p_action = 'CLOSED' and prior = 'CLOSED')
      or (p_action = 'REOPENED' and prior is distinct from 'CLOSED')
      or (p_action = 'OWNER_ZERO_FEES' and (prior = 'CLOSED' or exists (
