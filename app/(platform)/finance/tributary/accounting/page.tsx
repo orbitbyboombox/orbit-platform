@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { SiiReceivedFeeForm } from "@/features/finance/components/sii-received-fee-form";
+import { loadReceivedFees, receivedFeeReview } from "@/features/finance/sii-received-fees";
 import { notFound } from "next/navigation";
 import { SiiRcvPreview } from "@/features/finance/components/sii-rcv-preview";
 import { loadRcvReport, loadStaffPeriodAmounts, siiCompanyRut, summarizeRcvAmounts } from "@/features/finance/sii-rcv-report";
@@ -15,12 +17,13 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
 
   const input = (await searchParams).period ?? "2026-11";
   const period = /^[1-9]\d{3}(?:-(?:0[1-9]|1[0-2]))?$/.test(input) ? input : "2026-11";
-  const [rows, periodEvents, staffAmounts] = await Promise.all([
+  const [rows, periodEvents, staffAmounts, fees] = await Promise.all([
     loadRcvReport(period).catch(() => null),
 
     period.length === 7 ? createAdminClient().from("sii_rcv_period_events" as never).select("action").eq("company_rut", siiCompanyRut)
       .eq("period", `${period}-01`).order("id", { ascending: false }) : Promise.resolve({ data: [], error: null }),
     loadStaffPeriodAmounts(period).catch(() => null),
+    loadReceivedFees(period).catch(() => null),
   ]);
   const saved = {
     Compras: (rows ?? []).filter(row => row.register === "Compras").map(row => ({ ...row.snapshot, expenseCategory: row.expense_category })),
@@ -84,6 +87,20 @@ export default async function AccountingPage({ searchParams }: { searchParams: P
           {!closed && !ownerZero && <button name="action" value="OWNER_ZERO_FEES" className="min-h-10 rounded-lg border px-3 text-sm">Registrar 0 boletas informadas</button>}
         </form>
       </section>}
+      <section className="min-w-0 space-y-3 rounded-xl border bg-card p-4">
+        <h2 className="font-semibold">Boletas de honorarios recibidas</h2>
+        <p className="text-sm text-muted">Documentos registrados para revisión. El cruce con Staff compara la liquidación del período por RUT y no genera pagos.</p>
+        {fees === null ? <p role="alert">No se pudieron consultar las boletas.</p> : <>
+          {!fees.length && <p className="text-sm">Sin boletas registradas en este período.</p>}
+          {fees.map(fee => <details className="min-w-0 rounded-lg border p-3" key={fee.id}>
+            <summary className="cursor-pointer break-words text-sm">{fee.issuer_name} · Folio {fee.folio} · {clp.format(fee.gross)}</summary>
+            <p className="mt-2 break-words text-sm">{fee.issuer_rut} · {fee.issued_on} · {receivedFeeReview(fee)}</p>
+            <p className="text-sm">Retención {clp.format(fee.withheld)} · Líquido {clp.format(fee.net)}</p>
+            {fee.has_pdf && <a className="mt-2 inline-flex min-h-10 items-center text-sm font-semibold text-brand" href={`/api/finance/tributary/fees/${fee.id}`}>Descargar PDF</a>}
+          </details>)}
+          {period.length === 7 && !closed && !periodEvents.error && <SiiReceivedFeeForm period={period} />}
+        </>}
+      </section>
       {rows === null ? <p role="alert">El registro guardado no se pudo cargar.</p> : <SiiRcvPreview saved={saved} /> }
     </main>
   );

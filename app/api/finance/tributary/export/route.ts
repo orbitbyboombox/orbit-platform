@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
+import { loadReceivedFees, receivedFeeReview } from "@/features/finance/sii-received-fees";
 import { loadRcvReport } from "@/features/finance/sii-rcv-report";
 import { loadMonthlyAccountingStaff, readMonthlyAccountingAttachments } from "@/features/finance/monthly-accounting-staff";
 
@@ -68,7 +69,7 @@ export async function GET(request: Request) {
       const staff = await loadMonthlyAccountingStaff(period);
       const sourceIds = (selected: Row[]) => selected.flatMap(row => "source_id" in row && typeof row.source_id === "string" ? [row.source_id] : []);
       const backups = await readMonthlyAccountingAttachments(staff.attachments, sourceIds(purchases), sourceIds(sales), staff.missingBoletas, staff.missingReceipts);
-      const rcv = await loadRcvReport(period);
+      const [rcv, fees] = await Promise.all([loadRcvReport(period), loadReceivedFees(period)]);
       const rcvSheets = (["Compras", "Ventas"] as const).map(register => ({
         title: `RCV SII ${register}`,
         headers: ["tipo", "folio", "fecha", "rut", "razon_social", "neto", "exento", "iva_informado", "iva_no_recuperable", "impuestos_adicionales", "total", "revision"],
@@ -77,7 +78,13 @@ export async function GET(request: Request) {
           d.otherTaxes.join(" + "), d.total, has_difference ? "Diferencia pendiente" : "Importado para revisión",
         ]),
       }));
-      const extra = [...staff.sheets, ...rcvSheets, { title: "Respaldos", headers: ["grupo", "identificador", "estado", "archivo", "referencia_drive"], rows: backups.manifest }];
+      const feeSheet = {
+        title: "Honorarios recibidos",
+        headers: ["nombre", "rut", "folio", "fecha", "bruto", "retencion", "liquido", "revision_staff", "pdf"],
+        rows: fees.map(fee => [fee.issuer_name, fee.issuer_rut, fee.folio, fee.issued_on, fee.gross, fee.withheld,
+          fee.net, receivedFeeReview(fee), fee.has_pdf ? new URL(`/api/finance/tributary/fees/${fee.id}`, request.url).href : "Sin PDF adjunto"]),
+      };
+      const extra = [...staff.sheets, ...rcvSheets, feeSheet, { title: "Respaldos", headers: ["grupo", "identificador", "estado", "archivo", "referencia_drive"], rows: backups.manifest }];
       for (const { title, headers, rows } of extra) {
         const sheet = workbook.addWorksheet(title);
         sheet.addRow(headers);
