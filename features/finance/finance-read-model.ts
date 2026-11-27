@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadAccountsReceivable } from "@/features/accounts-receivable";
 import { loadFinancialTruth } from "@/features/business-engine";
 import { summarizeFixedMonthlyExpenses, type FixedExpenseRule } from "@/features/expense-center/fixed-expense-read-model";
-import { selectCanonicalFuelLogs } from "./canonical-fuel";
+import { buildCanonicalFuelCandidates, invoicePaymentCashImpact, isQaOrTestMarker, officeLeaseIncomeImpact, signedStaffMovement } from "./canonical-cash-flow.ts";
 import { calculateMonthlyFinancePerformance } from "./finance-performance";
 
 export type FinanceMetric = {
@@ -28,9 +28,12 @@ export type FinanceRisk = {
 
 export type FinanceDashboardReadModel = {
   generatedAt: string;
+  period: string;
   periodLabel: string;
   cash: {
     total: number;
+    operatingCollected: number;
+    nonOperatingIncome: number;
     unassigned: number;
     accounts: { label: string; value: number; href: string }[];
   };
@@ -62,16 +65,24 @@ const accountKey = (value: unknown,accounts:readonly CashAccount[]): string | nu
   return null;
 };
 const monthName = new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric", timeZone: "America/Santiago" });
+const yearName = new Intl.DateTimeFormat("es-CL", { year: "numeric", timeZone: "America/Santiago" });
+const formatPeriodDate = (value: string) => new Intl.DateTimeFormat("es-CL", { month: "long", year: "numeric", timeZone: "America/Santiago" }).format(new Date(`${value}T12:00:00Z`));
+const lastDayOfMonth = (year: number, month: number) => new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+const resolvePeriod = (requested: string | undefined, today: string) => {
+  const fallback = today.slice(0, 7);
+  const value = requested && (/^\d{4}$/.test(requested) || /^\d{4}-\d{2}$/.test(requested)) ? requested : fallback;
+  if (/^\d{4}$/.test(value)) {
+    return { key: value, from: `${value}-01-01`, to: `${value}-12-31`, label: yearName.format(new Date(`${value}-07-01T12:00:00Z`)), months: 12 };
+  }
+  const [year, month] = value.split("-").map(Number);
+  return { key: value, from: `${value}-01`, to: lastDayOfMonth(year, month), label: formatPeriodDate(`${value}-01`), months: 1 };
+};
+const accountingMonthInRange = (value: string | null | undefined, from: string, to: string) => value ? inRange(`${value.slice(0, 7)}-01`, from, to) : false;
 const moneyMetric = (label: string, value: number, detail: string, href: string, tone?: FinanceMetric["tone"]): FinanceMetric => ({ label, value, detail, href, format: "money", tone });
 const financialRisk = (risk: FinanceRisk): FinanceRisk => risk;
 /** Mirrors the immutable public.invoice_payment_cash_impact SQL function. */
-export const invoicePaymentCashImpact = (movementType: string | null, amount: number | string | null): number => {
-  const type = (movementType?.trim() ?? "PARTIAL_PAYMENT").toUpperCase();
-  const value = number(amount);
-  if (type === "DEPOSIT" || type === "PARTIAL_PAYMENT" || type === "FULL_PAYMENT") return value;
-  if (type === "RETURN_COMPLETED") return -Math.abs(value);
-  return 0;
-};
+export { invoicePaymentCashImpact };
+export { selectCanonicalFuelLogs } from "./canonical-fuel.ts";
 
 /**
  * Canonical Finance Read Model for the Founder dashboard.
@@ -82,38 +93,40 @@ export async function loadFinanceDashboardReadModel(
   financialTruthSource?:
     | Awaited<ReturnType<typeof loadFinancialTruth>>
     | Promise<Awaited<ReturnType<typeof loadFinancialTruth>>>,
+  requestedPeriod?: string,
 ): Promise<FinanceDashboardReadModel> {
   const now = new Date();
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(now);
-  const month = today.slice(0, 7);
-  const monthStart = `${month}-01`;
+  const selectedPeriod = resolvePeriod(requestedPeriod, today);
+  const monthStart = selectedPeriod.from;
   const next30Date = new Date(`${today}T12:00:00Z`);
   next30Date.setUTCDate(next30Date.getUTCDate() + 30);
   const next30 = next30Date.toISOString().slice(0, 10);
 
-  const [truth, receivableDataset, receivablesResult, paymentsResult, expensesResult, settlementsResult, staffMovementsResult, fuelResult, routesResult, routeEventsResult, integrityResult,bankAccountsResult,fixedRulesResult,trainingPaymentsResult] = await Promise.all([
+  const [truth, receivableDataset, receivablesResult, paymentsResult, expensesResult, settlementsResult, staffMovementsResult, fuelResult, routesResult, routeEventsResult, integrityResult,bankAccountsResult,fixedRulesResult,trainingPaymentsResult,officeIncomeResult] = await Promise.all([
     financialTruthSource ? Promise.resolve(financialTruthSource) : loadFinancialTruth(client),
     loadAccountsReceivable(client),
     client.from("accounts_receivable_projection").select("id,project_id,customer_id,due_date,amount,paid_amount,outstanding_balance,effective_status"),
     client.from("invoice_payments").select("id,invoice_id,amount,movement_type,paid_at,method,deleted_at,invoices!inner(financial_record_state,record_origin,status,deleted_at)").is("deleted_at", null).eq("invoices.financial_record_state", "ACTIVE").eq("invoices.record_origin", "PRODUCTION").neq("invoices.status", "CANCELLED").is("invoices.deleted_at", null),
-    client.from("expenses").select("id,project_id,occurred_on,total,status,receipt_path,approval_reason,event_staff_settlement_id").is("deleted_at", null),
+    client.from("expenses").select("id,project_id,occurred_on,total,status,receipt_path,approval_reason,event_staff_settlement_id,category,supplier").is("deleted_at", null),
     client.from("staff_settlement_financials").select("settlement_id,project_id,staff_id,accounting_month,payroll_net,final_amount,paid_amount,remaining_balance,sii_receipt_status"),
     client.from("event_staff_settlement_movements").select("id,settlement_id,movement_type,amount,movement_date,method").is("deleted_at", null),
-    client.from("vehicle_fuel_logs").select("id,fuel_date,total_amount,receipt_path,gas_station,route_id"),
+    client.from("vehicle_fuel_logs").select("id,asset_id,fuel_date,total_amount,receipt_path,gas_station,route_id"),
     client.from("vehicle_routes").select("id,status,deleted_at,notes"),
     client.from("vehicle_route_events").select("route_id,project_id"),
     client.from("financial_integrity_issues").select("id,status").eq("status", "OPEN"),
     client.from("finance_bank_accounts").select("code,name,account_kind,is_primary").eq("active",true).order("is_primary",{ascending:false}),
     client.from("finance_recurring_expense_rules").select("id,name,category,amount,currency,frequency,next_due_date,active,metadata"),
     client.from("staff_training_payment_movements").select("id,project_id,amount,movement_date,method"),
+    client.from("office_lease_income_items").select("id,item_type,amount,office_lease_payments!inner(paid_on,payment_method)").gt("amount", 0),
   ]);
-  const error = receivablesResult.error ?? paymentsResult.error ?? expensesResult.error ?? settlementsResult.error ?? staffMovementsResult.error ?? fuelResult.error??routesResult.error??routeEventsResult.error??bankAccountsResult.error??fixedRulesResult.error??trainingPaymentsResult.error;
+  const error = receivablesResult.error ?? paymentsResult.error ?? expensesResult.error ?? settlementsResult.error ?? staffMovementsResult.error ?? fuelResult.error??routesResult.error??routeEventsResult.error??bankAccountsResult.error??fixedRulesResult.error??trainingPaymentsResult.error??officeIncomeResult.error;
   if (error) throw error;
 
   const activeTruth = truth.filter((row) => row.status === "CONFIRMED");
   const activeProjectIds = new Set(activeTruth.map((row) => row.projectId));
   const todayTruth = activeTruth.filter((row) => row.eventDate === today);
-  const monthTruth = activeTruth.filter((row) => row.eventDate?.startsWith(month));
+  const monthTruth = activeTruth.filter((row) => inRange(row.eventDate, selectedPeriod.from, selectedPeriod.to));
   const receivables = receivablesResult.data ?? [];
   const payments = paymentsResult.data ?? [];
   // Exact equivalent of public.invoice_payment_cash_impact (immutable SQL CASE):
@@ -122,26 +135,31 @@ export async function loadFinanceDashboardReadModel(
     ...row,
     cashImpact: invoicePaymentCashImpact(row.movement_type, row.amount),
   }));
-  const expenses = (expensesResult.data ?? []).filter((row) => !row.project_id || activeProjectIds.has(row.project_id));
+  const expenses = (expensesResult.data ?? []).filter((row) => (!row.project_id || activeProjectIds.has(row.project_id)) && !isQaOrTestMarker(row.category, row.supplier, row.receipt_path, row.approval_reason));
   const settlements = (settlementsResult.data ?? []).filter((row) => activeProjectIds.has(row.project_id));
   const activeSettlementIds = new Set(settlements.map((row) => row.settlement_id));
   const staffMovements = (staffMovementsResult.data ?? []).filter((row) => activeSettlementIds.has(row.settlement_id));
   const expenseReceipts = new Set(expenses.map((row) => row.receipt_path).filter((path): path is string => Boolean(path)));
   const routes = new Map((routesResult.data ?? []).map((row) => [row.id, row]));
   const productionRouteIds = new Set((routeEventsResult.data ?? []).filter((row) => activeProjectIds.has(row.project_id)).map((row) => row.route_id));
-  const fuel = selectCanonicalFuelLogs((fuelResult.data ?? []).map((row) => {
+  const fuel = buildCanonicalFuelCandidates((fuelResult.data ?? []).map((row) => {
     const route = row.route_id ? routes.get(row.route_id) : null;
-    return { ...row, receiptPath: row.receipt_path, gasStation: row.gas_station, routeId: row.route_id, routeStatus: route?.status ?? null, routeDeletedAt: route?.deleted_at ?? null, routeNotes: route?.notes ?? null, hasActiveProductionProject: Boolean(row.route_id && productionRouteIds.has(row.route_id)) };
+    return { ...row, fuelDate: row.fuel_date, totalAmount: row.total_amount, assetId: row.asset_id, receiptPath: row.receipt_path, gasStation: row.gas_station, routeId: row.route_id, routeStatus: route?.status ?? null, routeDeletedAt: route?.deleted_at ?? null, routeNotes: route?.notes ?? null, hasActiveProductionProject: Boolean(row.route_id && productionRouteIds.has(row.route_id)) };
   }), expenseReceipts);
 
-  const collectedAll = sum(canonicalPayments, (row) => row.cashImpact);
+  const officeIncomeRows = (officeIncomeResult.data ?? []).filter((row) => row.office_lease_payments).map((row) => ({ itemType: row.item_type, value: officeLeaseIncomeImpact(row.item_type, row.amount) }));
+  const officeRentIncome = sum(officeIncomeRows.filter((row) => row.itemType === "RENT"), (row) => row.value);
+  const officeGuaranteeIncome = sum(officeIncomeRows.filter((row) => row.itemType === "SECURITY_DEPOSIT"), (row) => row.value);
+  const customerCollected = sum(canonicalPayments, (row) => row.cashImpact);
+  const operatingCollected = customerCollected + officeRentIncome;
+  const collectedAll = operatingCollected + officeGuaranteeIncome;
   const paidExpenses = expenses.filter((row) => row.status === "PAID");
-  const staffCashMovements = staffMovements.map((row) => ({ ...row, signedAmount: row.movement_type === "REVERSAL" ? -number(row.amount) : number(row.amount) }));
+  const staffCashMovements = staffMovements.map((row) => ({ ...row, signedAmount: signedStaffMovement(row) }));
   staffCashMovements.push(...(trainingPaymentsResult.data ?? []).filter(row => activeProjectIds.has(row.project_id)).map(row => ({
     id: row.id, settlement_id: row.id, movement_type: "PAYMENT", amount: row.amount,
     movement_date: row.movement_date, method: row.method, signedAmount: number(row.amount),
   })));
-  const outgoingAll = sum(paidExpenses, (row) => number(row.total)) + sum(staffCashMovements, (row) => row.signedAmount) + sum(fuel, (row) => number(row.total_amount));
+  const outgoingAll = sum(paidExpenses, (row) => number(row.total)) + sum(staffCashMovements, (row) => row.signedAmount) + sum(fuel, (row) => number(row.totalAmount));
   const availableCash = collectedAll - outgoingAll;
 
   const configuredAccounts:CashAccount[]=(bankAccountsResult.data??[]).map(row=>({code:row.code,name:row.name,kind:row.account_kind,primary:row.is_primary}));
@@ -158,29 +176,29 @@ export async function loadFinanceDashboardReadModel(
     registerCash(meta.sourceAccount ?? meta.bank ?? meta.paymentMethod, -number(row.total));
   });
   staffCashMovements.forEach((row) => registerCash(row.method, -row.signedAmount));
-  fuel.forEach((row) => registerCash(null, -number(row.total_amount)));
+  fuel.forEach((row) => registerCash(null, -number(row.totalAmount)));
 
   const todayPayments = canonicalPayments.filter((row) => dateOnly(row.paid_at) === today);
-  const monthPayments = canonicalPayments.filter((row) => dateOnly(row.paid_at).startsWith(month));
+  const monthPayments = canonicalPayments.filter((row) => inRange(row.paid_at, selectedPeriod.from, selectedPeriod.to));
   const todayExpenses = paidExpenses.filter((row) => row.occurred_on === today);
-  const monthExpenses = paidExpenses.filter((row) => row.occurred_on?.startsWith(month));
+  const monthExpenses = paidExpenses.filter((row) => inRange(row.occurred_on, selectedPeriod.from, selectedPeriod.to));
   const todayStaff = staffCashMovements.filter((row) => row.movement_date === today);
-  const todayFuel = fuel.filter((row) => row.fuel_date === today);
-  const monthFuel = fuel.filter((row) => row.fuel_date?.startsWith(month));
-  const monthlyPayroll = settlements.filter((row) => row.accounting_month?.startsWith(month));
+  const todayFuel = fuel.filter((row) => row.fuelDate === today);
+  const monthFuel = fuel.filter((row) => inRange(row.fuelDate, selectedPeriod.from, selectedPeriod.to));
+  const monthlyPayroll = settlements.filter((row) => accountingMonthInRange(row.accounting_month, selectedPeriod.from, selectedPeriod.to));
   const outstanding = sum(receivables.filter((row) => !["PAID", "CANCELLED"].includes(row.effective_status)), (row) => number(row.outstanding_balance));
   const monthlyRevenue = sum(monthTruth, (row) => row.revenue);
   const monthlyCosts = sum(monthTruth, (row) => row.realCost);
   const fixedRules: FixedExpenseRule[] = (fixedRulesResult.data ?? []).map((row) => ({ id: row.id, name: row.name, category: row.category, amount: number(row.amount), currency: row.currency as "CLP" | "USD", frequency: row.frequency, active: row.active, nextDueDate: row.next_due_date, metadata: (row.metadata ?? {}) as Record<string, unknown> }));
-  const fixedMonthlyExpenses = summarizeFixedMonthlyExpenses(fixedRules, now).monthlyTotal;
+  const fixedMonthlyExpenses = summarizeFixedMonthlyExpenses(fixedRules, now).monthlyTotal * selectedPeriod.months;
   const performance = calculateMonthlyFinancePerformance({ revenue: monthlyRevenue, directEventCosts: monthlyCosts, fixedMonthlyExpenses });
   const todayRevenue = sum(todayTruth, (row) => row.revenue);
   const todayCost = sum(todayTruth, (row) => row.realCost);
   const todayProfit = sum(todayTruth, (row) => row.netProfit);
   const collectionsToday = sum(todayPayments, (row) => row.cashImpact);
   const collectionsMonth = sum(monthPayments, (row) => row.cashImpact);
-  const paymentsToday = sum(todayExpenses, (row) => number(row.total)) + sum(todayStaff, (row) => row.signedAmount) + sum(todayFuel, (row) => number(row.total_amount));
-  const expensesMonth = sum(monthExpenses, (row) => number(row.total)) + sum(monthFuel, (row) => number(row.total_amount));
+  const paymentsToday = sum(todayExpenses, (row) => number(row.total)) + sum(todayStaff, (row) => row.signedAmount) + sum(todayFuel, (row) => number(row.totalAmount));
+  const expensesMonth = sum(monthExpenses, (row) => number(row.total)) + sum(monthFuel, (row) => number(row.totalAmount));
 
   const upcomingReceivables = receivables.filter((row) => !["PAID", "CANCELLED"].includes(row.effective_status) && inRange(row.due_date, today, next30));
   const upcomingExpenses = expenses.filter((row) => row.status === "PENDING" && inRange(row.occurred_on, today, next30));
@@ -210,9 +228,12 @@ export async function loadFinanceDashboardReadModel(
   const payrollTotal = sum(monthlyPayroll, (row) => number(row.payroll_net));
   return {
     generatedAt: now.toISOString(),
-    periodLabel: monthName.format(now),
+    period: selectedPeriod.key,
+    periodLabel: selectedPeriod.key === today.slice(0, 7) ? monthName.format(now) : selectedPeriod.label,
     cash: {
       total: availableCash,
+      operatingCollected,
+      nonOperatingIncome: officeGuaranteeIncome,
       unassigned: unassignedCash,
       accounts: configuredAccounts.map(account => ({ label:account.name, value: cashAccounts.get(account.code) ?? 0, href: `/finance/cash-flow?account=${account.code}` })),
     },
@@ -224,7 +245,7 @@ export async function loadFinanceDashboardReadModel(
       moneyMetric("Profit de hoy", todayProfit, "Ventas menos costo real de Eventos de hoy.", "/projects?date=today&view=profitability", todayProfit >= 0 ? "success" : "danger"),
     ],
     month: [
-      moneyMetric("Ventas del mes", monthlyRevenue, "Financial Truth confirmado por fecha de Evento.", "/projects?period=month"),
+      moneyMetric("Ventas del mes", monthlyRevenue, "Financial Truth: ingreso neto sin IVA para rentabilidad; no reemplaza la facturación AR.", "/projects?period=month"),
       moneyMetric("Cobrado del mes", collectionsMonth, "Impacto de caja canónico del Payment Ledger.", "/finance/receivables?period=month"),
       moneyMetric("Costos directos de Eventos", monthlyCosts, "Costo real de eventos confirmados del mes, con un traslado interno fijo por evento.", "/projects?period=month&view=profitability"),
       moneyMetric("Gastos fijos comprometidos", fixedMonthlyExpenses, "Overhead mensual vigente; no reduce caja hasta su pago.", "/finance/expenses"),
@@ -236,7 +257,7 @@ export async function loadFinanceDashboardReadModel(
       moneyMetric("Egresos pagados del mes", expensesMonth, "Gastos y combustible materializados durante el mes.", "/finance/expenses?period=month"),
     ],
     position: [
-      moneyMetric("Cobrado acumulado", collectedAll, "Impacto de caja canónico acumulado.", "/finance/receivables?status=paid"),
+      moneyMetric("Caja cobrada acumulada", collectedAll, "Cobranzas de clientes y arriendo; garantías no operacionales identificadas aparte.", "/finance/cash-flow"),
       moneyMetric("Por cobrar total", outstanding, "Saldo global de cuentas activas.", "/finance/receivables", outstanding > 0 ? "warning" : "default"),
       moneyMetric("Saldos Clientes / Eventos", receivableDataset.metrics.paymentCategorySummary.ordinary, "Pendiente ordinario sin crédito empresarial.", "/finance/receivables?category=ordinary"),
       moneyMetric("Crédito Empresas", receivableDataset.metrics.companyCredits, "Saldo corporativo, con o sin plazo definido.", "/finance/receivables?category=company-credit"),

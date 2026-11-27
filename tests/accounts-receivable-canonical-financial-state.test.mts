@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { actualPaidAmount, effectiveReceivableStatus, scheduleDueDate } from "../features/accounts-receivable/canonical-financial-state.ts";
+import { actualPaidAmount, effectiveReceivableStatus, invoicePaymentCashImpact, scheduleDueDate } from "../features/accounts-receivable/canonical-financial-state.ts";
 
 test("uses payment_schedule dueDate instead of the invoice status text", () => {
   assert.equal(scheduleDueDate([{ dueDate: "2026-11-05", status: "PENDING" }], "2026-01-01"), "2026-11-05");
@@ -17,5 +17,14 @@ test("calculates the partial balance from registered payments", () => {
 test("does not duplicate an empty payment ledger", () => {
   assert.equal(actualPaidAmount(0, []), 0);
   assert.equal(actualPaidAmount(1904000, []), 1904000);
+});
+
+test("returns and deleted payments do not inflate the collected balance", () => {
+  assert.equal(invoicePaymentCashImpact("RETURN_COMPLETED", 25_000), -25_000);
+  assert.equal(actualPaidAmount(0, [
+    { amount: 100_000, movementType: "PARTIAL_PAYMENT" },
+    { amount: 25_000, movementType: "RETURN_COMPLETED" },
+    { amount: 90_000, movementType: "PARTIAL_PAYMENT", deletedAt: "2026-11-01T00:00:00Z" },
+  ]), 75_000);
 });
 

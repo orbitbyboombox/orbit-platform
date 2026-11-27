@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { TaxPdfViewer } from "@/features/finance/components/tax-pdf-viewer";
 import { PdfViewer } from "@/features/document-viewer/pdf-viewer";
 
 export default async function ProjectDocumentViewer({ params, searchParams }: {
@@ -19,5 +20,6 @@ export default async function ProjectDocumentViewer({ params, searchParams }: {
       explicitReturn = true;
     }
   }
+  if (explicitReturn) return <TaxPdfViewer key={src} src={src} download={`${src}?download=1`} returnTo={fallback} />;
   return <PdfViewer title="Documento del evento" src={src} download={`${src}?download=1`} fallback={fallback} explicitReturn={explicitReturn} />;
 }

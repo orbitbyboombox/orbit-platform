@@ -16,3 +16,32 @@ const money=(value:number)=>new Intl.NumberFormat("es-CL",{style:"currency",curr
 export async function createSummaryPdf(data:AccountantExportData){const pdf=await PDFDocument.create();const regular=await pdf.embedFont(StandardFonts.Helvetica);const bold=await pdf.embedFont(StandardFonts.HelveticaBold);const page=pdf.addPage([595.28,841.89]);const {height}=page.getSize();page.drawRectangle({x:0,y:height-128,width:595.28,height:128,color:rgb(.055,.055,.055)});page.drawText("ORBIT",{x:46,y:height-62,size:24,font:bold,color:rgb(1,1,1)});page.drawText("RESUMEN CONTABLE",{x:46,y:height-92,size:13,font:bold,color:rgb(.95,.56,.17)});page.drawText(`${data.company.legalName} · ${data.company.taxId||"RUT no informado"}`,{x:46,y:height-111,size:9,font:regular,color:rgb(.75,.75,.78)});page.drawText(`Periodo: ${data.from} al ${data.to}`,{x:46,y:height-155,size:10,font:bold,color:rgb(.16,.16,.18)});const entries:[string,number,boolean?][]=[["Total ingresos por ventas",data.summary.totalRevenue],["Total gastos",data.summary.totalExpenses],["Total cobrado",data.summary.totalIncome],["Total egresado",data.summary.totalOutgoing],["Ingresos netos",data.summary.netRevenue],["Gastos netos",data.summary.netExpenses],["IVA débito",data.summary.vatDebit],["IVA crédito",data.summary.vatCredit],["Diferencia IVA",data.summary.vatDifference,true],["Cuentas por cobrar",data.summary.accountsReceivable],["Cuentas por pagar",data.summary.accountsPayable],["Saldo bancario del período",data.summary.bankBalance,true],["Margen bruto",data.summary.grossMargin],["Margen neto",data.summary.netMargin*100,true]];let y=height-196;for(const[label,value,strong]of entries){if(strong)page.drawRectangle({x:40,y:y-9,width:515,height:30,color:rgb(.965,.965,.97)});page.drawText(label,{x:50,y,size:10,font:strong?bold:regular,color:rgb(.2,.2,.22)});const shown=label==="Margen neto"?`${value.toFixed(1)}%`:money(value);page.drawText(shown,{x:392,y,size:10,font:bold,color:strong?rgb(.85,.38,.05):rgb(.12,.12,.14)});y-=36;}page.drawText("Generado con datos productivos de ORBIT. Sin registros duplicados.",{x:46,y:42,size:8,font:regular,color:rgb(.45,.45,.48)});return Buffer.from(await pdf.save())}
 
 export async function createZip(data:AccountantExportData){const zip=new JSZip();for(const table of data.tables)zip.file(table.fileName,await createTableWorkbook(table));zip.file("06_RESUMEN_CONTABLE.pdf",await createSummaryPdf(data));return zip.generateAsync({type:"nodebuffer",compression:"DEFLATE",compressionOptions:{level:6}})}
+
+/** Verify the ZIP bytes and compare every serialized worksheet cell with the export data. */
+export async function verifyAccountantZip(bytes: Buffer, data: AccountantExportData) {
+  const archive = await JSZip.loadAsync(bytes, { checkCRC32: true });
+  const pdfName = "06_RESUMEN_CONTABLE.pdf";
+  const expectedNames = [...data.tables.map(table => table.fileName), pdfName];
+  const actualNames = Object.keys(archive.files).filter(name => !archive.files[name].dir);
+  if (new Set(expectedNames).size !== expectedNames.length || actualNames.length !== expectedNames.length ||
+      expectedNames.some(name => !archive.file(name))) throw new Error("El ZIP contable no contiene los archivos esperados.");
+
+  const workbooks = [];
+  for (const table of data.tables) {
+    const file = archive.file(table.fileName);
+    if (!file) throw new Error("Falta un libro contable.");
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(await file.async("arraybuffer"));
+    const sheet = book.worksheets[0];
+    const rows = [table.headers, ...table.rows];
+    if (book.worksheets.length !== 1 || sheet.name !== table.name.slice(0, 31) || sheet.actualRowCount !== rows.length ||
+        rows.some((row, index) => row.some((cell, column) => (sheet.getRow(index + 1).getCell(column + 1).value ?? null) !== cell))) {
+      throw new Error(`Los datos del libro ${table.name} no coinciden con la exportación.`);
+    }
+    workbooks.push({ file: table.fileName, rows: table.rows.length });
+  }
+  const summary = archive.file(pdfName);
+  if (!summary) throw new Error("Falta el resumen contable.");
+  const pdf = await PDFDocument.load(await summary.async("uint8array"));
+  return { files: actualNames.length, workbooks, summaryPages: pdf.getPageCount() };
+}

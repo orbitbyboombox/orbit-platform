@@ -19,6 +19,9 @@ type Metric = {
   href: string;
 };
 
+type Risk = { key: string; label: string; count: number; amount: number; detail: string; href: string; severity: "warning" | "danger" };
+type Cash = { total: number; operatingCollected: number; nonOperatingIncome: number; unassigned: number; accounts: { label: string; value: number; href: string }[] };
+
 type SectionKey = "sii" | "ventas" | "gastos" | "clientes";
 
 type Access = { label: string; href: string; description: string };
@@ -104,10 +107,23 @@ function formatMetric(metric?: Metric) {
   return new Intl.NumberFormat("es-CL").format(metric.value);
 }
 
-export function FinancePremiumCenter({ month, position }: { month: Metric[]; position: Metric[] }) {
+const withPeriod = (href: string, period: string) => {
+  if (!period || href.startsWith("#")) return href;
+  return `${href}${href.includes("?") ? "&" : "?"}period=${encodeURIComponent(period)}`;
+};
+
+export function FinancePremiumCenter({ month, position, forecast, risks, cash, period, periodLabel }: { month: Metric[]; position: Metric[]; forecast: Metric[]; risks: Risk[]; cash: Cash; period: string; periodLabel: string }) {
   const [selected, setSelected] = useState<SectionKey | null>(null);
   const active = useMemo(() => sections.find((section) => section.key === selected), [selected]);
   const metric = (label: string) => month.find((item) => item.label === label) ?? position.find((item) => item.label === label);
+  const positionMetric = (label: string) => position.find((item) => item.label === label);
+  const monthMetric = (label: string) => month.find((item) => item.label === label);
+  const secondaryGroups = [
+    { key: "caja", title: "Caja registrada y cuentas", description: "Movimientos canónicos materializados; no representa saldo bancario real.", items: [positionMetric("Caja registrada"), positionMetric("Cobrado acumulado"), positionMetric("Egresos acumulados registrados")].filter(Boolean) as Metric[] },
+    { key: "cobranza", title: "Cobranza y obligaciones", description: "Saldos canónicos vigentes y cobros del período.", items: [positionMetric("Por cobrar total"), positionMetric("Saldos Clientes / Eventos"), positionMetric("Crédito Empresas"), monthMetric("Cobrado del mes")].filter(Boolean) as Metric[] },
+    { key: "proyeccion", title: "Proyección a 30 días", description: "Movimientos pendientes previstos, separados de la caja ya materializada.", items: forecast },
+    { key: "resultado", title: "Resultado operativo y Staff", description: "Rentabilidad, gastos fijos y compromisos de remuneraciones.", items: [monthMetric("Gastos fijos comprometidos"), monthMetric("Resultado de Eventos"), monthMetric("Resultado operativo"), monthMetric("Nómina devengada del mes"), monthMetric("Egresos pagados del mes")].filter(Boolean) as Metric[] },
+  ];
 
   return (
     <div className="space-y-4 sm:space-y-8">
@@ -115,6 +131,11 @@ export function FinancePremiumCenter({ month, position }: { month: Metric[]; pos
         <p className="text-xs font-semibold uppercase tracking-[.24em]" style={{ color: "#F58B22" }}>ORBIT · v2.1.8</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-tight text-white sm:mt-3 sm:text-4xl">Finanzas</h1>
         <p className="mt-1 text-sm sm:mt-2 sm:text-base" style={{ color: "#9AA1AC" }}>Centro de administración financiera</p>
+        <nav aria-label="Período financiero" className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+          <span style={{ color: "#9AA1AC" }}>Período: <strong className="text-white">{periodLabel}</strong></span>
+          <Link href="/finance" className="rounded-lg border px-2.5 py-1.5 text-white hover:border-[#F58B22]">Mes actual</Link>
+          <Link href={`/finance?period=${encodeURIComponent(period.slice(0, 4))}`} className="rounded-lg border px-2.5 py-1.5 text-white hover:border-[#F58B22]">Año {period.slice(0, 4)}</Link>
+        </nav>
       </header>
 
       <section aria-label="Módulos principales de Finanzas" className="grid grid-cols-2 gap-2 sm:gap-4">
@@ -158,7 +179,7 @@ export function FinancePremiumCenter({ month, position }: { month: Metric[]; pos
           </div>
           <div className="mt-3 grid gap-2 sm:mt-5 sm:grid-cols-2">
             {active.accesses.map((access) => (
-              <Link key={access.label} href={access.href} className="flex min-h-[48px] items-center justify-between gap-2 rounded-xl border px-3 py-2 transition hover:border-[#F58B22] sm:gap-4 sm:rounded-2xl sm:px-4 sm:py-3" style={{ borderColor: "#30343B", background: "#0C0E12" }}>
+              <Link key={access.label} href={withPeriod(access.href, period)} className="flex min-h-[48px] items-center justify-between gap-2 rounded-xl border px-3 py-2 transition hover:border-[#F58B22] sm:gap-4 sm:rounded-2xl sm:px-4 sm:py-3" style={{ borderColor: "#30343B", background: "#0C0E12" }}>
                 <span><strong className="block text-xs text-white sm:text-sm">{access.label}</strong><small style={{ color: "#9AA1AC" }}>{access.description}</small></span>
                 <ChevronRight className="size-4 shrink-0" style={{ color: "#F58B22" }} aria-hidden />
               </Link>
@@ -171,18 +192,37 @@ export function FinancePremiumCenter({ month, position }: { month: Metric[]; pos
         <section aria-label="Resumen financiero ejecutivo" className="grid grid-cols-2 gap-2 sm:gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {[
             { label: "Ingresos del mes", item: metric("Ventas del mes"), Icon: ReceiptText },
-            { label: "Gastos del mes", item: metric("Egresos pagados del mes"), Icon: WalletCards },
+            { label: "Egresos pagados del mes", item: metric("Egresos pagados del mes"), Icon: WalletCards },
             { label: "Por cobrar", item: metric("Por cobrar total"), Icon: FileText },
             { label: "Rentabilidad", item: metric("Margen operativo") ?? metric("Margen de Eventos"), Icon: TrendingUp },
           ].map(({ label, item, Icon }) => {
             const typed = item;
             const ChartIcon = Icon;
-            return <Link key={label} href={typed?.href ?? "/finance"} className="rounded-xl border p-3 transition hover:border-[#F58B22] sm:rounded-2xl sm:p-5" style={{ background: "#171A20", borderColor: "#30343B" }}>
+            return <Link key={label} href={withPeriod(typed?.href ?? "/finance", period)} className="rounded-xl border p-3 transition hover:border-[#F58B22] sm:rounded-2xl sm:p-5" style={{ background: "#171A20", borderColor: "#30343B" }}>
               <div className="flex items-center justify-between"><span className="text-[11px] leading-tight sm:text-sm" style={{ color: "#9AA1AC" }}>{label}</span><ChartIcon className="size-4" style={{ color: "#F58B22" }} aria-hidden /></div>
               <p className="mt-2 text-lg font-semibold text-white sm:mt-4 sm:text-2xl">{formatMetric(typed)}</p>
               <p className="mt-1 text-[10px] leading-tight sm:mt-2 sm:text-xs" style={{ color: "#9AA1AC" }}>{typed?.detail ?? "Sin datos disponibles"}</p>
             </Link>;
           })}
+        </section>
+      )}
+
+      {!selected && (
+        <section aria-label="Indicadores financieros secundarios" className="grid gap-3 lg:grid-cols-2">
+          {secondaryGroups.map((group) => (
+            <details className="rounded-2xl border p-4 sm:p-5" key={group.key} style={{ background: "#171A20", borderColor: "#30343B" }}>
+              <summary className="cursor-pointer list-none font-semibold text-white">{group.title}</summary>
+              <p className="mt-2 text-xs" style={{ color: "#9AA1AC" }}>{group.description}</p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                {group.items.map((item) => <Link key={item.label} href={withPeriod(item.href, period)} className="rounded-xl border p-3 hover:border-[#F58B22]" style={{ borderColor: "#30343B", background: "#0C0E12" }}><div className="flex items-center justify-between gap-2"><span className="text-xs text-white">{item.label}</span><ChevronRight className="size-3.5" style={{ color: "#F58B22" }} aria-hidden /></div><strong className="mt-2 block text-lg text-white">{formatMetric(item)}</strong><small style={{ color: "#9AA1AC" }}>{item.detail}</small></Link>)}
+              </div>
+              {group.key === "caja" && <div className="mt-4 border-t pt-3" style={{ borderColor: "#30343B" }}><p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "#9AA1AC" }}>Distribución y alcance</p><div className="mt-2 grid gap-2 sm:grid-cols-2"><Link href={withPeriod("/finance/receivables?status=paid", period)} className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs text-white hover:border-[#F58B22]" style={{ borderColor: "#30343B" }}><span>Cobrado operacional</span><strong>{money.format(cash.operatingCollected)}</strong></Link><Link href={withPeriod("/office-rent", period)} className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs text-white hover:border-[#F58B22]" style={{ borderColor: "#30343B" }}><span>Garantías de arriendo · no operacional</span><strong>{money.format(cash.nonOperatingIncome)}</strong></Link></div><p className="mt-3 text-xs" style={{ color: "#9AA1AC" }}>La caja total incluye ambos flujos; Ventas y Cuentas por Cobrar solo representan obligaciones de clientes.</p><p className="mt-3 text-xs font-semibold uppercase tracking-wide" style={{ color: "#9AA1AC" }}>Distribución por cuenta</p><div className="mt-2 grid gap-2 sm:grid-cols-2">{cash.accounts.map((account) => <Link key={account.label} href={withPeriod(account.href, period)} className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs text-white hover:border-[#F58B22]" style={{ borderColor: "#30343B" }}><span>{account.label}</span><strong>{money.format(account.value)}</strong></Link>)}</div>{cash.unassigned !== 0 && <p className="mt-2 text-xs text-warning">Sin cuenta identificada: {money.format(cash.unassigned)}</p>}</div>}
+            </details>
+          ))}
+          <details className="rounded-2xl border p-4 sm:p-5 lg:col-span-2" id="financial-risks" style={{ background: "#171A20", borderColor: "#30343B" }}>
+            <summary className="cursor-pointer list-none font-semibold text-white">Alertas y riesgos financieros ({risks.length})</summary>
+            <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{risks.length ? risks.map((risk) => <Link key={risk.key} href={withPeriod(risk.href, period)} className="rounded-xl border p-3 hover:border-[#F58B22]" style={{ borderColor: "#30343B", background: "#0C0E12" }}><div className="flex items-center justify-between gap-2"><span className="text-xs text-white">{risk.label}</span><span className={risk.severity === "danger" ? "text-danger" : "text-warning"}>{risk.count}</span></div><strong className="mt-2 block text-lg text-white">{money.format(risk.amount)}</strong><small style={{ color: "#9AA1AC" }}>{risk.detail}</small></Link>) : <p className="text-sm text-muted">No hay riesgos abiertos en el motor canónico.</p>}</div>
+          </details>
         </section>
       )}
 
