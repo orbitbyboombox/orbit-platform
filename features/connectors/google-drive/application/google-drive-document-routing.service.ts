@@ -1,16 +1,16 @@
 import "server-only";
 
 import { createHash } from "node:crypto";
+import { withDriveReconciliationLease } from "./drive-reconciliation-lease";
 import { resolveExistingBillingFolder } from "./existing-billing-folder";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { loadCompanySettings } from "@/features/company-settings";
-import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
+import { loadGoogleWorkspaceAccessToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { GoogleDriveApiProvider } from "../provider/google-drive-live.provider";
 import { SupabaseGoogleDriveFolderRepository } from "../repository/google-drive-folder.repository";
 import type { GoogleDriveDocumentKind } from "../types/google-drive-live.types";
-import { buildCustomerFolderPlan, buildRootFolderPlan, resolveAutomaticDestination } from "./google-drive-folder-strategy";
-import { GoogleDriveLive } from "./google-drive-live";
+import { resolveAutomaticDestination } from "./google-drive-folder-strategy";
 import { synchronizeConfirmedReservationDrive } from "./google-drive-sync.service";
 
 interface ReservationDocumentContext {
@@ -39,47 +39,54 @@ export async function resolveReservationDocumentFolder(input: ReservationDocumen
     }
     return { folderId, folderPath, provider };
   }
-  await synchronizeConfirmedReservationDrive({ client: input.client, projectId: input.projectId, recordTimeline: false });
-  const [company, accessToken, connection] = await Promise.all([
-    loadCompanySettings(input.client),
-    loadGoogleWorkspaceAccessToken(),
-    loadGoogleWorkspaceConnection(),
-  ]);
-  const provider = new GoogleDriveApiProvider(accessToken);
-  const drive = new GoogleDriveLive(connection, provider, new SupabaseGoogleDriveFolderRepository(input.client, input.projectId));
-  const synchronizedAt = new Date().toISOString();
-  const root = await drive.synchronizeFolderPlan(buildRootFolderPlan(company.driveRootFolder), synchronizedAt);
-  if (!root.ok) throw new Error(root.error.message);
-  const folders = await drive.synchronizeFolderPlan(buildCustomerFolderPlan(input.customerName, input.eventDate, company.driveRootFolder), synchronizedAt);
-  if (!folders.ok) throw new Error(folders.error.message);
+  const eventFolder = await synchronizeConfirmedReservationDrive({ client: input.client, projectId: input.projectId, recordTimeline: false });
+  const company = await loadCompanySettings(input.client);
   const destination = resolveAutomaticDestination({ kind: input.kind, context: { customerName: input.customerName, eventDate: input.eventDate } }, company.driveRootFolder);
-  const folder = folders.folders.find((item) => item.path === destination.folderPath);
-  if (!folder?.driveFolderId) throw new Error("No fue posible resolver la carpeta documental en Google Drive.");
-  return { folderId: folder.driveFolderId, folderPath: folder.path, provider };
+  const leaf = destination.folderPath.split("/").at(-1);
+  if (!leaf) throw new Error("No fue posible resolver el tipo de carpeta documental.");
+  const provider = new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());
+  const folder = await provider.findFolder({ name: leaf, parentFolderId: eventFolder.folderId });
+  if (!folder) throw new Error("No fue posible verificar la carpeta documental de este evento en Google Drive.");
+  return { folderId: folder.id, folderPath: `${eventFolder.folderPath}/${leaf}`, provider };
 }
 
-export async function uploadReservationDocumentToDrive(input: ReservationDocumentContext & { name: string; mimeType: string; bytes: Uint8Array }) {
+type ReservationDocumentUpload = ReservationDocumentContext & { name: string; mimeType: string; bytes: Uint8Array };
+
+export async function uploadReservationDocumentToDrive(input: ReservationDocumentUpload) {
+  return archiveReservationDocumentToDrive(input);
+}
+
+export async function archiveReservationDocumentToDrive(input: ReservationDocumentUpload) {
   const destination = await resolveReservationDocumentFolder(input);
-  const checksum = input.preserveExistingStructure ? createHash("sha256").update(input.bytes).digest("hex") : undefined;
-  const existing = checksum ? await destination.provider.findFilesByName({ name: input.name, parentFolderId: destination.folderId }) : [];
-  const md5 = checksum ? createHash("md5").update(input.bytes).digest("hex") : undefined;
-  const matching = existing.find(file => file.appProperties?.orbitSha256 === checksum || file.md5Checksum === md5);
-  if (existing.length && !matching) throw new Error("Ya existe un archivo con ese nombre y contenido diferente en Facturación. No se reemplazó.");
-  const file = matching ?? await destination.provider.uploadFile({ name: input.name, mimeType: input.mimeType, bytes: input.bytes, parentFolderId: destination.folderId, ...(checksum && { appProperties: { orbitSha256: checksum } }) });
+  const file = await archiveVerifiedDriveFile({ ...input, provider: destination.provider, folderId: destination.folderId });
   return { ...file, folderId: destination.folderId, folderPath: destination.folderPath };
 }
 
-export async function archiveReservationDocumentToDrive(input: ReservationDocumentContext & { name: string; mimeType: string; bytes: Uint8Array }) {
-  const destination = await resolveReservationDocumentFolder(input);
-  const existing = await destination.provider.findFileByName({
-    name: input.name,
-    parentFolderId: destination.folderId,
+export async function archiveVerifiedDriveFile(input: {
+  provider: GoogleDriveApiProvider;
+  folderId: string;
+  name: string;
+  mimeType: string;
+  bytes: Uint8Array;
+}) {
+  return withDriveReconciliationLease(`reservation-document:${input.folderId}:${input.name}`, async () => {
+    const checksum = createHash("sha256").update(input.bytes).digest("hex");
+    const md5 = createHash("md5").update(input.bytes).digest("hex");
+    const existing = await input.provider.findFilesByName({ name: input.name, parentFolderId: input.folderId });
+    if (existing.length > 1 || existing.some(file => file.md5Checksum !== md5)) {
+      throw new Error("El nombre del archivo ya existe en Drive y requiere conciliación. Se preservaron los archivos.");
+    }
+    const file = existing[0] ?? await input.provider.uploadFile({
+      name: input.name,
+      mimeType: input.mimeType,
+      bytes: input.bytes,
+      parentFolderId: input.folderId,
+      appProperties: { orbitSha256: checksum },
+    });
+    const verified = await input.provider.findFilesByName({ name: input.name, parentFolderId: input.folderId });
+    if (verified.length !== 1 || verified[0].id !== file.id || verified[0].md5Checksum !== md5) {
+      throw new Error("Google Drive todavía no confirmó un archivo único con el contenido esperado.");
+    }
+    return { ...file, reused: existing.length === 1 };
   });
-  const file = existing ?? await destination.provider.uploadFile({
-    name: input.name,
-    mimeType: input.mimeType,
-    bytes: input.bytes,
-    parentFolderId: destination.folderId,
-  });
-  return { ...file, folderId: destination.folderId, folderPath: destination.folderPath, reused: Boolean(existing) };
 }

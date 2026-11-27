@@ -8,25 +8,85 @@ import { GoogleDriveApiProvider } from "../provider/google-drive-live.provider";
 import { SupabaseGoogleDriveFolderRepository } from "../repository/google-drive-folder.repository";
 import { buildCancelledReservationFolderPlan, buildCustomerFolderPlan, buildRootFolderPlan } from "./google-drive-folder-strategy";
 import { GoogleDriveLive } from "./google-drive-live";
+import { withDriveReconciliationLease } from "./drive-reconciliation-lease";
 
-export interface ReservationDriveFolderResult { folderId:string; folderUrl:string; reused:boolean }
+export interface ReservationDriveFolderResult { folderId:string; folderUrl:string; folderPath:string; reused:boolean }
 
 async function synchronizeWithRetry(drive:GoogleDriveLive,plan:ReturnType<typeof buildCustomerFolderPlan>|ReturnType<typeof buildRootFolderPlan>,synchronizedAt:string){let lastError="No fue posible sincronizar Google Drive.";for(let attempt=1;attempt<=3;attempt+=1){const result=await drive.synchronizeFolderPlan(plan,synchronizedAt);if(result.ok)return result;lastError=result.error.message;if(!result.error.retryable)break;if(attempt<3)await new Promise(resolve=>setTimeout(resolve,attempt*300));}throw new Error(lastError);}
 
-export async function synchronizeConfirmedReservationDrive(input:{client:SupabaseClient;projectId:string;actorId?:string;recordTimeline?:boolean}):Promise<ReservationDriveFolderResult>{
+type ReservationDriveInput = { client: SupabaseClient; projectId: string; actorId?: string; recordTimeline?: boolean };
+
+export async function synchronizeConfirmedReservationDrive(input: ReservationDriveInput): Promise<ReservationDriveFolderResult> {
+  return withDriveReconciliationLease("reservation-folders", () => synchronizeReservationFolders(input));
+}
+
+async function synchronizeReservationFolders(input: ReservationDriveInput): Promise<ReservationDriveFolderResult> {
   const[{data:project,error:projectError},company]=await Promise.all([
     input.client.from("projects").select("id,customer_id,orbit_event_id,event_date,operations,customers!inner(full_name,metadata)").eq("id",input.projectId).is("deleted_at",null).single(),
     loadCompanySettings(input.client),
   ]);
   if(projectError)throw projectError;
   const customer=Array.isArray(project.customers)?project.customers[0]:project.customers;if(!customer)throw new Error("La reserva no tiene un cliente asociado.");
-  const plan=buildCustomerFolderPlan(customer.full_name,project.event_date,company.driveRootFolder);const eventFolderPlan=plan[2];const repository=new SupabaseGoogleDriveFolderRepository(input.client,project.id);const synchronizedAt=new Date().toISOString();const provider=new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());const drive=new GoogleDriveLive(await loadGoogleWorkspaceConnection(),provider,repository);
-  await synchronizeWithRetry(drive,buildRootFolderPlan(company.driveRootFolder),synchronizedAt);
+  const plan=buildCustomerFolderPlan(customer.full_name,project.event_date,company.driveRootFolder).map(item => ({ ...item }));const eventFolderPlan=plan[2];const repository=new SupabaseGoogleDriveFolderRepository(input.client,project.id);const synchronizedAt=new Date().toISOString();const provider=new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());const drive=new GoogleDriveLive(await loadGoogleWorkspaceConnection(),provider,repository);
+  await synchronizeWithRetry(drive,buildRootFolderPlan(company.driveRootFolder).slice(0, 2),synchronizedAt);
   await synchronizeWithRetry(drive,plan.slice(0,2),synchronizedAt);
   const operations=project.operations&&typeof project.operations==="object"?project.operations as Record<string,unknown>:{};const linkedDrive=operations.googleDrive&&typeof operations.googleDrive==="object"?operations.googleDrive as Record<string,unknown>:{};
   const{data:storedFolders,error:storedError}=await input.client.from("drive_sync").select("destination_key,external_folder_id,last_synced_at,status").eq("project_id",project.id).not("external_folder_id","is",null);if(storedError)throw storedError;
-  const linkedFolderId=typeof linkedDrive.folderId==="string"?linkedDrive.folderId:null;const previousEvent=(storedFolders??[]).find(row=>row.external_folder_id===linkedFolderId)??(storedFolders??[]).find(row=>row.destination_key.split("/").length===4);const reused=Boolean(previousEvent?.external_folder_id);
-  if(previousEvent?.external_folder_id){const parent=await repository.findByPath(eventFolderPlan.parentPath!);if(!parent?.driveFolderId)throw new Error("No fue posible resolver el nuevo período en Google Drive.");const previousParentPath=previousEvent.destination_key.slice(0,previousEvent.destination_key.lastIndexOf("/"));const previousParent=(storedFolders??[]).find(row=>row.destination_key===previousParentPath);const actualParents=await provider.getFolderParents?.(previousEvent.external_folder_id);const physicalPreviousParents=actualParents?.filter(id=>id!==parent.driveFolderId).join(",")||undefined;await provider.updateFolder({id:previousEvent.external_folder_id,name:eventFolderPlan.name,parentFolderId:parent.driveFolderId,previousParentFolderId:physicalPreviousParents??previousParent?.external_folder_id??undefined});const oldPath=previousEvent.destination_key;for(const row of storedFolders??[]){if(row.destination_key!==oldPath&&!row.destination_key.startsWith(`${oldPath}/`))continue;const destination=row.destination_key===oldPath?eventFolderPlan.path:`${eventFolderPlan.path}${row.destination_key.slice(oldPath.length)}`;const{error:updatePathError}=await input.client.from("drive_sync").update({destination_key:destination,status:"UPDATED",last_synced_at:synchronizedAt,last_error:null}).eq("project_id",project.id).eq("external_folder_id",row.external_folder_id);if(updatePathError)throw updatePathError;}}
+  const linkedFolderId = typeof linkedDrive.folderId === "string" ? linkedDrive.folderId : null;
+  const eventRows = (storedFolders ?? []).filter(row => {
+    const segments = row.destination_key.split("/");
+    return segments.length === 5 && segments[1] === "01_CLIENTES" && /^\d{2}-\d{2}-\d{4} - /.test(segments[4]);
+  });
+  const matchingRows = linkedFolderId
+    ? eventRows.filter(row => row.external_folder_id === linkedFolderId)
+    : eventRows;
+  if (matchingRows.length > 1 || (linkedFolderId && matchingRows.length !== 1)) {
+    throw new Error("La referencia histórica de Drive requiere conciliación por ID.");
+  }
+  const previousEvent = matchingRows[0];
+  const reused = Boolean(previousEvent?.external_folder_id);
+  if (!previousEvent) {
+    const month = await repository.findByPath(eventFolderPlan.parentPath!);
+    if (!month?.driveFolderId) throw new Error("No se pudo verificar la carpeta mensual de Drive.");
+    const ambiguousLegacy = await provider.findFolder({ name: eventFolderPlan.name, parentFolderId: month.driveFolderId });
+    if (ambiguousLegacy) throw new Error("Hay una carpeta histórica con ese nombre. Confirma su identidad antes de crear o vincular.");
+  }
+  if (!previousEvent || previousEvent.destination_key.endsWith(` - ${project.orbit_event_id}`)) {
+    const oldPath = eventFolderPlan.path;
+    const suffix = ` - ${project.orbit_event_id}`;
+    eventFolderPlan.name += suffix;
+    eventFolderPlan.path += suffix;
+    for (const child of plan.slice(3)) {
+      child.path = `${eventFolderPlan.path}${child.path.slice(oldPath.length)}`;
+      child.parentPath = eventFolderPlan.path;
+    }
+  }
+  if (previousEvent?.external_folder_id) {
+    const parent = await repository.findByPath(eventFolderPlan.parentPath!);
+    if (!parent?.driveFolderId || parent.driveFolderId === previousEvent.external_folder_id) {
+      throw new Error("No fue posible verificar la carpeta del mes y la del evento en Drive.");
+    }
+    const actualParents = await provider.getFolderParents(previousEvent.external_folder_id);
+    if (actualParents.length !== 1 || actualParents[0] !== parent.driveFolderId) {
+      throw new Error("La carpeta del evento tiene otro padre en Drive. Se requiere revisar su ubicación.");
+    }
+    if (previousEvent.destination_key !== eventFolderPlan.path) {
+      const conflicting = await provider.findFolder({ name: eventFolderPlan.name, parentFolderId: parent.driveFolderId });
+      if (conflicting && conflicting.id !== previousEvent.external_folder_id) {
+        throw new Error("Ya existe otra carpeta con el nombre de destino en Drive.");
+      }
+      await provider.updateFolder({ id: previousEvent.external_folder_id, name: eventFolderPlan.name });
+      const oldPath = previousEvent.destination_key;
+      for (const row of storedFolders ?? []) {
+        if (row.destination_key !== oldPath && !row.destination_key.startsWith(`${oldPath}/`)) continue;
+        const destination = `${eventFolderPlan.path}${row.destination_key.slice(oldPath.length)}`;
+        const { error: updatePathError } = await input.client.from("drive_sync")
+          .update({ destination_key: destination, status: "UPDATED", last_synced_at: synchronizedAt, last_error: null })
+          .eq("project_id", project.id).eq("destination_key", row.destination_key);
+        if (updatePathError) throw updatePathError;
+      }
+    }
+  }
   const synced=await synchronizeWithRetry(drive,plan,synchronizedAt);const eventFolder=synced.folders.find(folder=>folder.path===eventFolderPlan.path);if(!eventFolder?.driveFolderId)throw new Error("No fue posible resolver la carpeta del evento.");
   const folderUrl=`https://drive.google.com/drive/folders/${eventFolder.driveFolderId}`;const metadata=customer.metadata&&typeof customer.metadata==="object"?customer.metadata as Record<string,unknown>:{};const currentFolders=metadata.googleDriveFolders&&typeof metadata.googleDriveFolders==="object"?metadata.googleDriveFolders as Record<string,unknown>:{};
   const[{error:projectLinkError},{error:customerLinkError}]=await Promise.all([
@@ -34,14 +94,20 @@ export async function synchronizeConfirmedReservationDrive(input:{client:Supabas
     input.client.from("customers").update({metadata:{...metadata,googleDriveFolders:{...currentFolders,[project.id]:{folderId:eventFolder.driveFolderId,folderUrl,path:eventFolder.path}}},...(input.actorId&&{updated_by:input.actorId})}).eq("id",project.customer_id),
   ]);if(projectLinkError)throw projectLinkError;if(customerLinkError)throw customerLinkError;
   if(input.recordTimeline!==false){const message=reused?"Carpeta de Google Drive sincronizada sin cambiar su identificador.":"Carpeta y estructura documental creadas en Google Drive.";const{error:timelineError}=await input.client.from("timeline_events").insert({customer_id:project.customer_id,project_id:project.id,event_type:reused?"DRIVE_FOLDER_SYNCED":"DRIVE_FOLDER_CREATED",title:message,description:message,orbit_event_id:project.orbit_event_id,actor_id:input.actorId??null,actor_label:input.actorId?"Administrador":"Sistema",source:"Drive",action:reused?"DRIVE_FOLDER_SYNCED":"DRIVE_FOLDER_CREATED",entity_type:"DriveFolder",entity_id:eventFolder.driveFolderId,human_message:message,correlation_id:`drive:${project.orbit_event_id}:${randomUUID()}`,created_by:input.actorId??null});if(timelineError)throw timelineError;}
-  return{folderId:eventFolder.driveFolderId,folderUrl,reused};
+  return{folderId:eventFolder.driveFolderId,folderUrl,folderPath:eventFolder.path,reused};
 }
 
-export async function archiveCancelledReservationDrive(input:{client:SupabaseClient;projectId:string;actorId:string}):Promise<{archived:boolean;folderId?:string;folderUrl?:string}>{
+type CancelledReservationDriveInput = { client: SupabaseClient; projectId: string; actorId: string };
+
+export async function archiveCancelledReservationDrive(input: CancelledReservationDriveInput) {
+  return withDriveReconciliationLease("reservation-folders", () => archiveCancelledReservationFolder(input));
+}
+
+async function archiveCancelledReservationFolder(input: CancelledReservationDriveInput): Promise<{archived:boolean;folderId?:string;folderUrl?:string}> {
   const[{data:project,error:projectError},company]=await Promise.all([input.client.from("projects").select("id,customer_id,orbit_event_id,event_date,operations,customers!inner(metadata)").eq("id",input.projectId).single(),loadCompanySettings(input.client)]);if(projectError)throw projectError;
   const operations=project.operations&&typeof project.operations==="object"?project.operations as Record<string,unknown>:{};const linked=operations.googleDrive&&typeof operations.googleDrive==="object"?operations.googleDrive as Record<string,unknown>:{};const folderId=typeof linked.folderId==="string"?linked.folderId:undefined;const folderUrl=typeof linked.folderUrl==="string"?linked.folderUrl:folderId?`https://drive.google.com/drive/folders/${folderId}`:undefined;if(!folderId)return{archived:false};
   const plan=buildCancelledReservationFolderPlan(project.event_date,company.driveRootFolder);const target=plan.at(-1)!;const currentPath=typeof linked.path==="string"?linked.path:"";if(currentPath.startsWith(`${target.path}/`))return{archived:false,folderId,folderUrl};
-  const repository=new SupabaseGoogleDriveFolderRepository(input.client,project.id);const provider=new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());const drive=new GoogleDriveLive(await loadGoogleWorkspaceConnection(),provider,repository);const synchronizedAt=new Date().toISOString();await synchronizeWithRetry(drive,buildRootFolderPlan(company.driveRootFolder),synchronizedAt);await synchronizeWithRetry(drive,plan,synchronizedAt);
+  const repository=new SupabaseGoogleDriveFolderRepository(input.client,project.id);const provider=new GoogleDriveApiProvider(await loadGoogleWorkspaceAccessToken());const drive=new GoogleDriveLive(await loadGoogleWorkspaceConnection(),provider,repository);const synchronizedAt=new Date().toISOString();await synchronizeWithRetry(drive,buildRootFolderPlan(company.driveRootFolder).slice(0, 2),synchronizedAt);await synchronizeWithRetry(drive,plan,synchronizedAt);
   const{data:folders,error:foldersError}=await input.client.from("drive_sync").select("destination_key,external_folder_id").eq("project_id",project.id).not("external_folder_id","is",null);if(foldersError)throw foldersError;const eventRow=(folders??[]).find(row=>row.external_folder_id===folderId);const previousPath=eventRow?.destination_key??currentPath;if(!previousPath)throw new Error("No fue posible resolver la carpeta actual de la reserva.");const previousParentPath=previousPath.slice(0,previousPath.lastIndexOf("/"));const previousParent=(folders??[]).find(row=>row.destination_key===previousParentPath);const targetParent=await repository.findByPath(target.path);if(!targetParent?.driveFolderId)throw new Error("No fue posible crear el archivo de reservas canceladas.");const eventName=previousPath.split("/").at(-1)??"Reserva cancelada";
   await provider.updateFolder({id:folderId,name:eventName,parentFolderId:targetParent.driveFolderId,previousParentFolderId:previousParent?.external_folder_id??undefined});const archivedPath=`${target.path}/${eventName}`;
   for(const row of folders??[]){if(row.destination_key!==previousPath&&!row.destination_key.startsWith(`${previousPath}/`))continue;const destination=row.destination_key===previousPath?archivedPath:`${archivedPath}${row.destination_key.slice(previousPath.length)}`;const{error}=await input.client.from("drive_sync").update({destination_key:destination,status:"ARCHIVED",last_synced_at:synchronizedAt,last_error:null}).eq("project_id",project.id).eq("external_folder_id",row.external_folder_id);if(error)throw error;}

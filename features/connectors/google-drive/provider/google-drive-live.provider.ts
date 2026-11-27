@@ -20,9 +20,9 @@ export interface GoogleDriveLiveProvider {
   findFilesByName?(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveFoundFile[]>;
   createFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder>;
   getFolderParents?(id: string): Promise<string[]>;
+  readFolder?(id: string): Promise<GoogleDriveCreatedFolder & { parents: string[] }>;
   updateFolder(input: { id: string; name: string; parentFolderId?: string; previousParentFolderId?: string }): Promise<GoogleDriveCreatedFolder>;
   uploadFile(input: { name: string; mimeType: string; bytes: Uint8Array; parentFolderId?: string; appProperties?: Record<string, string> }): Promise<GoogleDriveUploadedFile>;
-  deleteFile?(id: string): Promise<void>;
   listChildren?(parentId: string): Promise<Array<{ id: string; mimeType?: string }>>;
 }
 
@@ -80,7 +80,6 @@ export class InMemoryGoogleDriveLiveProvider implements GoogleDriveLiveProvider 
     return created;
   }
 
-  async deleteFile(id: string) { this.folders.forEach((value, key) => { if (value.id === id) this.folders.delete(key); }); this.files.forEach((value, key) => { if (value.some((file) => file.id === id)) this.files.delete(key); }); this.parents.delete(id); }
 
   async listChildren(parentId: string) { return [...this.parents.entries()].filter(([, parents]) => parents.includes(parentId)).map(([id]) => ({ id, mimeType: "application/vnd.google-apps.folder" })); }
 }
@@ -103,12 +102,15 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     ].join(" and ");
     const url = new URL("https://www.googleapis.com/drive/v3/files");
     url.searchParams.set("q", query);
-    url.searchParams.set("fields", "files(id,name)");
-    url.searchParams.set("pageSize", "1");
+    url.searchParams.set("fields", "nextPageToken,files(id,name)");
+    url.searchParams.set("pageSize", "2");
 
     const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
     if (!response.ok) throw new Error(`Google Drive lookup failed (${response.status}): ${await response.text()}`);
-    const body = await response.json() as { files?: GoogleDriveCreatedFolder[] };
+    const body = await response.json() as { nextPageToken?: string; files?: GoogleDriveCreatedFolder[] };
+    if (body.nextPageToken || (body.files?.length ?? 0) > 1) {
+      throw new Error("Hay carpetas homónimas en Google Drive. Revisa sus identificadores antes de continuar.");
+    }
     return body.files?.[0] ?? null;
   }
 
@@ -123,24 +125,39 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     const query = [`name = '${escape(input.name)}'`, "trashed = false", parent].join(" and ");
     const url = new URL("https://www.googleapis.com/drive/v3/files");
     url.searchParams.set("q", query);
-    url.searchParams.set("fields", "files(id,name,mimeType,size,md5Checksum,appProperties)");
+    url.searchParams.set("fields", "nextPageToken,incompleteSearch,files(id,name,mimeType,size,md5Checksum,appProperties)");
     url.searchParams.set("pageSize", "100");
 
+    const files: GoogleDriveFoundFile[] = [];
+    const pages = new Set<string>();
+    do {
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
+      if (!response.ok) throw new Error(`Google Drive file lookup failed (${response.status})`);
+      const body = await response.json() as { files?: GoogleDriveFoundFile[]; nextPageToken?: string; incompleteSearch?: boolean };
+      if (body.incompleteSearch) throw new Error("Google Drive devolvió una búsqueda incompleta.");
+      files.push(...body.files ?? []);
+      if (!body.nextPageToken) return files;
+      if (pages.has(body.nextPageToken)) throw new Error("Google Drive repitió una página de resultados.");
+      pages.add(body.nextPageToken);
+      url.searchParams.set("pageToken", body.nextPageToken);
+    } while (true);
+  }
+
+  async readFolder(id: string): Promise<GoogleDriveCreatedFolder & { parents: string[] }> {
+    const url = new URL(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`);
+    url.searchParams.set("fields", "id,name,mimeType,trashed,parents");
+    url.searchParams.set("supportsAllDrives", "true");
     const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
-    if (!response.ok) {
-      throw new Error(`Google Drive file lookup failed (${response.status}): ${await response.text()}`);
+    if (!response.ok) throw new Error(`Google Drive folder lookup failed (${response.status})`);
+    const item = await response.json() as GoogleDriveCreatedFolder & { parents?: string[]; mimeType?: string; trashed?: boolean };
+    if (item.id !== id || item.trashed || item.mimeType !== "application/vnd.google-apps.folder") {
+      throw new Error("La referencia Drive está eliminada o no corresponde a una carpeta.");
     }
-    const body = await response.json() as { files?: GoogleDriveFoundFile[] };
-    return body.files ?? [];
+    return { id: item.id, name: item.name, parents: item.parents ?? [] };
   }
 
   async getFolderParents(id: string): Promise<string[]> {
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}?fields=parents`, {
-      headers: { Authorization: `Bearer ${this.accessToken}` },
-    });
-    if (!response.ok) throw new Error(`Google Drive parent lookup failed (${response.status}): ${await response.text()}`);
-    const body = await response.json() as { parents?: string[] };
-    return body.parents ?? [];
+    return (await this.readFolder(id)).parents;
   }
 
   async createFolder(input: { name: string; parentFolderId?: string }): Promise<GoogleDriveCreatedFolder> {
@@ -197,11 +214,6 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     });
     if (!response.ok) throw new Error(`Google Drive upload failed (${response.status}): ${await response.text()}`);
     return response.json() as Promise<GoogleDriveUploadedFile>;
-  }
-
-  async deleteFile(id: string): Promise<void> {
-    const response = await fetch(`https://www.googleapis.com/drive/v3/files/${encodeURIComponent(id)}`, { method: "DELETE", headers: { Authorization: `Bearer ${this.accessToken}` } });
-    if (!response.ok && response.status !== 404) throw new Error(`Google Drive delete failed (${response.status}): ${await response.text()}`);
   }
 
   async listChildren(parentId: string): Promise<Array<{ id: string; mimeType?: string }>> {

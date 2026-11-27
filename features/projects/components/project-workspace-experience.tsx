@@ -1,4 +1,5 @@
 "use client";
+import { EventDriveSyncButton } from "./event-drive-sync-button";
 import { EventIncidentObservations } from "@/features/resources/event-incident-observations";
 import type { IncidentObservation } from "@/features/resources/incident-observation";
 
@@ -1409,6 +1410,7 @@ export function ProjectWorkspaceExperience(
                 id="documents"
                 title="Documentos y estado comercial"
               >
+                {props.projectKey && <EventDriveSyncButton projectId={props.projectKey}/>}
                 {photoStripEligible ? <PhotoStripDesignCenter documents={photoStripDocuments} projectId={props.projectKey!}/> : null}
                 <EventCommercialDocumentHub projectId={props.projectKey!} customerName={props.clientName} customerTaxId={props.commercialHub.customerTaxId} customerKind={props.commercialHub.customerKind} quotation={props.commercialHub.quotation} contract={props.signing} receivable={event.receivable?{id:event.receivable.id,paid:event.receivable.paidAmount,outstanding:event.receivable.outstandingBalance,dueDate:event.receivable.dueDate,status:event.receivable.status}:undefined} paymentCondition={props.commercialHub.paymentCondition} documents={event.documents} taxDocuments={event.documents.filter(doc=>doc.taxType&&doc.folio&&doc.issueDate).map(doc=>({id:doc.id,taxType:doc.taxType!,folio:doc.folio!,issueDate:doc.issueDate!,total:doc.total??0,status:doc.status??"ADJUNTADO",href:doc.href,deliveryStatus:doc.deliveryStatus,deliveredAt:doc.deliveredAt,deliveredTo:doc.deliveredTo}))}/>
               </Section>
