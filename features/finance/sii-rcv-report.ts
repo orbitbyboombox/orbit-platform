@@ -4,7 +4,8 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import type { parseSiiRcv } from "./sii-rcv";
 
 type Document = ReturnType<typeof parseSiiRcv>["documents"][number];
-export type RcvReportRow = { register: "Compras" | "Ventas"; snapshot: Document; has_difference: boolean; expense_category: string | null };
+export type RcvEvidence = { document_key: string; match_status: "MATCHED" | "AMBIGUOUS" | "PENDING"; project_id: string | null; pdf_id: string | null; xml_id: string | null; paid: number | null; balance: number | null; expense_id: string | null };
+export type RcvReportRow = { register: "Compras" | "Ventas"; snapshot: Document; has_difference: boolean; expense_category: string | null; evidence?: RcvEvidence };
 export const siiCompanyRut = "765652723";
 
 export function periodBounds(period: string) {
@@ -20,11 +21,12 @@ export async function loadRcvReport(period: string): Promise<RcvReportRow[]> {
   const request = createAdminClient().rpc("sii_rcv_period_documents" as never, {
     p_company: siiCompanyRut, p_start: start, p_end: end,
   } as never, { count: "exact" });
-  const [{ data, count, error }, categories] = await Promise.all([
+  const [{ data, count, error }, categories, matches] = await Promise.all([
     request,
     createAdminClient().rpc("sii_rcv_purchase_category_report" as never, {
       p_company: siiCompanyRut, p_start: start, p_end: end,
     } as never, { count: "exact" }),
+    createAdminClient().rpc("sii_rcv_match_internal" as never, { p_company: siiCompanyRut, p_start: start, p_end: end } as never, { count: "exact" }),
   ]);
   const rows = (data ?? []) as RcvReportRow[];
   if (error || count === null || count > rows.length) throw new Error("El registro SII del período no se pudo recuperar completo.");
@@ -33,9 +35,18 @@ export async function loadRcvReport(period: string): Promise<RcvReportRow[]> {
     throw new Error("No se pudieron consultar las categorías administrativas.");
   }
   const mapped = new Map(categoryRows.map(item => [item.document_key, item.category]));
-  return rows.map(row => row.register === "Compras"
-    ? { ...row, expense_category: mapped.get(row.snapshot.key) ?? row.expense_category }
-    : row);
+  const matchRows = (matches.data ?? []) as RcvEvidence[];
+  if (matches.error || matches.count === null || matches.count !== rows.length || matchRows.length !== rows.length) {
+    throw new Error("No se pudo consultar la evidencia financiera del período.");
+  }
+  const evidence = new Map(matchRows.map(item => [item.document_key, item]));
+  return rows.map(row => ({ ...row, evidence: evidence.get(row.snapshot.key),
+    expense_category: row.register === "Compras" ? mapped.get(row.snapshot.key) ?? row.expense_category : row.expense_category }));
+}
+
+export function rcvEvidenceLabel(row?: RcvEvidence) {
+  if (row?.match_status === "MATCHED") return "Coincidencia interna";
+  return row?.match_status === "AMBIGUOUS" ? "Coincidencias múltiples · revisar" : "Sin coincidencia exacta";
 }
 
 export function summarizeRcvAmounts(rows: RcvReportRow[]) {
