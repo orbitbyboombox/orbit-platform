@@ -12,7 +12,7 @@ export async function loadMonthlyAccountingStaff(period: string) {
       .eq("tax_period", `${period}-01`).order("id"),
   ]);
   for (const result of [accounts, payments]) {
-    if (result.error || (result.count ?? 0) > (result.data?.length ?? 0)) {
+    if (result.error || result.count === null || result.count !== (result.data?.length ?? 0)) {
       throw new Error("El período Staff no se pudo recuperar completo.");
     }
   }
@@ -20,9 +20,9 @@ export async function loadMonthlyAccountingStaff(period: string) {
   const transfers = payments.data ?? [];
   const periodIds = [...new Set(transfers.map(row => row.period_id))];
   const periods = periodIds.length
-    ? await admin.from("staff_payment_periods").select("id,account_id,period_code").in("id", periodIds)
-    : { data: [], error: null };
-  if (periods.error) throw new Error("No se pudo vincular el período de los pagos Staff.");
+    ? await admin.from("staff_payment_periods").select("id,account_id,period_code", { count: "exact" }).in("id", periodIds)
+    : { data: [], error: null, count: 0 };
+  if (periods.error || periods.count !== periodIds.length || (periods.data?.length ?? 0) !== periodIds.length) throw new Error("No se pudo vincular el período de los pagos Staff.");
   const byPeriod = new Map((periods.data ?? []).map(row => [row.id, row]));
   const attachments = new Map<string, string>();
   for (const row of settlements) if (row.boleta_document_id) attachments.set(row.boleta_document_id, "Boletas-Staff");
@@ -47,11 +47,11 @@ export async function readMonthlyAccountingAttachments(
   const admin = createAdminClient();
   const fields = "id,storage_bucket,storage_path,mime_type";
   const [staff, expenses, sales] = await Promise.all([
-    staffIds.size ? admin.from("staff_onboarding_documents").select(fields).in("id", [...staffIds.keys()]) : { data: [], error: null },
-    expenseIds.length ? admin.from("documents").select(`${fields},expense_id,drive_file_id`, { count: "exact" }).in("expense_id", expenseIds).is("deleted_at", null).eq("is_current", true) : { data: [], error: null },
-    saleIds.length ? admin.from("documents").select(`${fields},drive_file_id`).in("id", saleIds).is("deleted_at", null) : { data: [], error: null },
+    staffIds.size ? admin.from("staff_onboarding_documents").select(fields, { count: "exact" }).in("id", [...staffIds.keys()]) : { data: [], error: null, count: 0 },
+    expenseIds.length ? admin.from("documents").select(`${fields},expense_id,drive_file_id`, { count: "exact" }).in("expense_id", expenseIds).is("deleted_at", null).eq("is_current", true) : { data: [], error: null, count: 0 },
+    saleIds.length ? admin.from("documents").select(`${fields},drive_file_id`, { count: "exact" }).in("id", saleIds).is("deleted_at", null) : { data: [], error: null, count: 0 },
   ]);
-  if (staff.error || expenses.error || sales.error || ("count" in expenses && (expenses.count ?? 0) > (expenses.data?.length ?? 0))) {
+  if ([staff, expenses, sales].some(result => result.error || result.count === null || result.count !== (result.data?.length ?? 0))) {
     throw new Error("No se pudo completar el inventario de respaldos.");
   }
   const candidates = [

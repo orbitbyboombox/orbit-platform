@@ -38,10 +38,10 @@ export async function GET(request: Request) {
     query = query.gte("occurred_on", start).lt("occurred_on", end);
   }
   const { data, error, count } = await query;
-  if (error) return new NextResponse(error.message, { status: 500 });
+  if (error || count === null) return new NextResponse("No se pudo verificar el registro completo del período.", { status: 503 });
   const headers = ["tipo","documento","referencia","fecha","neto","exento","iva","total","estado_pago","origen"];
   const rows = data ?? [];
-  if (count !== null && count > rows.length) return new NextResponse("El resultado excede el límite de exportación. Usa un período menor.", { status: 422 });
+  if (count !== rows.length) return new NextResponse("El resultado excede el límite de exportación. Usa un período menor.", { status: 422 });
   type Row = (typeof rows)[number];
   const values = (r: Row) => [r.source_type,r.document_type,r.reference,r.occurred_on,r.net_amount,r.exempt_amount,r.vat_amount,r.total_amount,r.payment_status,r.record_origin];
   const esc = (v: unknown) => {
@@ -114,7 +114,7 @@ export async function GET(request: Request) {
       const values = [row.source_type,row.document_type,row.reference,row.occurred_on,row.net_amount,row.exempt_amount,row.vat_amount,row.total_amount,row.payment_status,row.record_origin];
       return `<tr>${values.map((v) => `<td>${String(v ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")}</td>`).join("")}</tr>`;
     }).join("")}</tbody></table></body></html>`;
-    return new NextResponse(body, { headers: { "Content-Type":"application/vnd.ms-excel; charset=utf-8", "Content-Disposition":`attachment; filename="orbit-libro-tributario.xls"` } });
+    return new NextResponse(body, { headers: { "Cache-Control":"no-store", "Content-Type":"application/vnd.ms-excel; charset=utf-8", "Content-Disposition":`attachment; filename="orbit-libro-tributario.xls"` } });
   }
-  return new NextResponse(csv, { headers: { "Content-Type":"text/csv; charset=utf-8", "Content-Disposition":`attachment; filename="orbit-libro-tributario.csv"` } });
+  return new NextResponse(csv, { headers: { "Cache-Control":"no-store", "Content-Type":"text/csv; charset=utf-8", "Content-Disposition":`attachment; filename="orbit-libro-tributario.csv"` } });
 }
