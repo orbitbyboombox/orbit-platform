@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 export function PdfViewer({ title, src, download, fallback, onClose, explicitReturn = false }: {
@@ -14,8 +14,17 @@ export function PdfViewer({ title, src, download, fallback, onClose, explicitRet
   const router = useRouter();
   const frame = useRef<HTMLIFrameElement>(null);
   const [message, setMessage] = useState("");
-  const [loadedSource, setLoadedSource] = useState<string | null>(null);
-  const ready = loadedSource === src;
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "fallback">("loading");
+  const ready = loadState === "ready";
+
+  useEffect(() => {
+    setLoadState("loading");
+    setMessage("");
+    const timeout = window.setTimeout(() => {
+      setLoadState((state) => state === "loading" ? "fallback" : state);
+    }, 4000);
+    return () => window.clearTimeout(timeout);
+  }, [src]);
 
   function close() {
     if (onClose) { onClose(); return; }
@@ -47,8 +56,12 @@ export function PdfViewer({ title, src, download, fallback, onClose, explicitRet
       <a className="flex min-h-11 items-center justify-center rounded-lg border px-3 text-sm" href={download} download>Descargar</a>
       <button className="min-h-11 rounded-lg border px-3 text-sm disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={print} disabled={!ready}>Imprimir</button>
     </header>
-    {!ready && <p role="status" className="px-3 py-2 text-sm text-muted">Cargando documento. Puedes descargar el original mientras se abre el visor.</p>}
+    {loadState === "loading" && <p role="status" className="px-3 py-2 text-sm text-muted">Cargando documento. Puedes abrir o descargar el original mientras se abre el visor.</p>}
+    {loadState === "fallback" && !message && <p role="status" className="px-3 py-2 text-sm text-muted">El visor no confirmó la carga. Puedes abrir o descargar el PDF original.</p>}
     {message && <p role="status" className="px-3 py-2 text-sm">{message}</p>}
-    <iframe key={src} ref={frame} onLoad={() => setLoadedSource(src)} className="block min-h-[70dvh] w-full min-w-0 flex-1 border-0 bg-white" src={src} title={title} />
+    <div className="flex flex-wrap gap-2 px-3 py-2">
+      <a className="rounded-lg border px-3 py-2 text-sm font-semibold text-brand" href={src} target="_blank" rel="noopener noreferrer">Abrir PDF original</a>
+    </div>
+    <iframe key={src} ref={frame} onLoad={() => { setLoadState("ready"); setMessage(""); }} onError={() => { setLoadState("fallback"); setMessage("No fue posible cargar el visor. Usa Abrir PDF original o Descargar."); }} className="block min-h-[70dvh] w-full min-w-0 flex-1 border-0 bg-white" src={src} title={title} />
   </main>;
 }
