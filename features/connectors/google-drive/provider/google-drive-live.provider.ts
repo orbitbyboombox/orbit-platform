@@ -124,15 +124,22 @@ export class GoogleDriveApiProvider implements GoogleDriveLiveProvider {
     const query = [`name = '${escape(input.name)}'`, "trashed = false", parent].join(" and ");
     const url = new URL("https://www.googleapis.com/drive/v3/files");
     url.searchParams.set("q", query);
-    url.searchParams.set("fields", "files(id,name,mimeType,size,md5Checksum,appProperties)");
+    url.searchParams.set("fields", "nextPageToken,incompleteSearch,files(id,name,mimeType,size,md5Checksum,appProperties)");
     url.searchParams.set("pageSize", "100");
 
-    const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
-    if (!response.ok) {
-      throw new Error(`Google Drive file lookup failed (${response.status}): ${await response.text()}`);
-    }
-    const body = await response.json() as { files?: GoogleDriveFoundFile[] };
-    return body.files ?? [];
+    const files: GoogleDriveFoundFile[] = [];
+    const pages = new Set<string>();
+    do {
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
+      if (!response.ok) throw new Error(`Google Drive file lookup failed (${response.status})`);
+      const body = await response.json() as { files?: GoogleDriveFoundFile[]; nextPageToken?: string; incompleteSearch?: boolean };
+      if (body.incompleteSearch) throw new Error("Google Drive devolvió una búsqueda incompleta.");
+      files.push(...body.files ?? []);
+      if (!body.nextPageToken) return files;
+      if (pages.has(body.nextPageToken)) throw new Error("Google Drive repitió una página de resultados.");
+      pages.add(body.nextPageToken);
+      url.searchParams.set("pageToken", body.nextPageToken);
+    } while (true);
   }
 
   async getFolderParents(id: string): Promise<string[]> {

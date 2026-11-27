@@ -8,12 +8,19 @@ import { GoogleDriveApiProvider } from "../provider/google-drive-live.provider";
 import { SupabaseGoogleDriveFolderRepository } from "../repository/google-drive-folder.repository";
 import { buildCancelledReservationFolderPlan, buildCustomerFolderPlan, buildRootFolderPlan } from "./google-drive-folder-strategy";
 import { GoogleDriveLive } from "./google-drive-live";
+import { withDriveReconciliationLease } from "./drive-reconciliation-lease";
 
 export interface ReservationDriveFolderResult { folderId:string; folderUrl:string; folderPath:string; reused:boolean }
 
 async function synchronizeWithRetry(drive:GoogleDriveLive,plan:ReturnType<typeof buildCustomerFolderPlan>|ReturnType<typeof buildRootFolderPlan>,synchronizedAt:string){let lastError="No fue posible sincronizar Google Drive.";for(let attempt=1;attempt<=3;attempt+=1){const result=await drive.synchronizeFolderPlan(plan,synchronizedAt);if(result.ok)return result;lastError=result.error.message;if(!result.error.retryable)break;if(attempt<3)await new Promise(resolve=>setTimeout(resolve,attempt*300));}throw new Error(lastError);}
 
-export async function synchronizeConfirmedReservationDrive(input:{client:SupabaseClient;projectId:string;actorId?:string;recordTimeline?:boolean}):Promise<ReservationDriveFolderResult>{
+type ReservationDriveInput = { client: SupabaseClient; projectId: string; actorId?: string; recordTimeline?: boolean };
+
+export async function synchronizeConfirmedReservationDrive(input: ReservationDriveInput): Promise<ReservationDriveFolderResult> {
+  return withDriveReconciliationLease("reservation-folders", () => synchronizeReservationFolders(input));
+}
+
+async function synchronizeReservationFolders(input: ReservationDriveInput): Promise<ReservationDriveFolderResult> {
   const[{data:project,error:projectError},company]=await Promise.all([
     input.client.from("projects").select("id,customer_id,orbit_event_id,event_date,operations,customers!inner(full_name,metadata)").eq("id",input.projectId).is("deleted_at",null).single(),
     loadCompanySettings(input.client),
@@ -90,7 +97,13 @@ export async function synchronizeConfirmedReservationDrive(input:{client:Supabas
   return{folderId:eventFolder.driveFolderId,folderUrl,folderPath:eventFolder.path,reused};
 }
 
-export async function archiveCancelledReservationDrive(input:{client:SupabaseClient;projectId:string;actorId:string}):Promise<{archived:boolean;folderId?:string;folderUrl?:string}>{
+type CancelledReservationDriveInput = { client: SupabaseClient; projectId: string; actorId: string };
+
+export async function archiveCancelledReservationDrive(input: CancelledReservationDriveInput) {
+  return withDriveReconciliationLease("reservation-folders", () => archiveCancelledReservationFolder(input));
+}
+
+async function archiveCancelledReservationFolder(input: CancelledReservationDriveInput): Promise<{archived:boolean;folderId?:string;folderUrl?:string}> {
   const[{data:project,error:projectError},company]=await Promise.all([input.client.from("projects").select("id,customer_id,orbit_event_id,event_date,operations,customers!inner(metadata)").eq("id",input.projectId).single(),loadCompanySettings(input.client)]);if(projectError)throw projectError;
   const operations=project.operations&&typeof project.operations==="object"?project.operations as Record<string,unknown>:{};const linked=operations.googleDrive&&typeof operations.googleDrive==="object"?operations.googleDrive as Record<string,unknown>:{};const folderId=typeof linked.folderId==="string"?linked.folderId:undefined;const folderUrl=typeof linked.folderUrl==="string"?linked.folderUrl:folderId?`https://drive.google.com/drive/folders/${folderId}`:undefined;if(!folderId)return{archived:false};
   const plan=buildCancelledReservationFolderPlan(project.event_date,company.driveRootFolder);const target=plan.at(-1)!;const currentPath=typeof linked.path==="string"?linked.path:"";if(currentPath.startsWith(`${target.path}/`))return{archived:false,folderId,folderUrl};
