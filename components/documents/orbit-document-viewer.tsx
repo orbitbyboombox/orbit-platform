@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Download, Share2, X } from "lucide-react";
+import { ArrowLeft, Download, Printer, Share2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,8 @@ type OrbitDocumentViewerProps = {
 export function OrbitDocumentViewer({ title, src, onClose, downloadUrl }: OrbitDocumentViewerProps) {
   const [message, setMessage] = useState("");
   const closeLock = useRef(false);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [loaded, setLoaded] = useState(false);
   const close = () => {
     if (closeLock.current) return;
     closeLock.current = true;
@@ -45,6 +47,16 @@ export function OrbitDocumentViewer({ title, src, onClose, downloadUrl }: OrbitD
       setMessage("Enlace copiado.");
     }
   };
+  const print = () => {
+    try {
+      const pdf = frame.current?.contentWindow;
+      if (!pdf || !loaded) return;
+      pdf.focus();
+      pdf.print();
+    } catch {
+      setMessage("Si tu navegador no permite imprimir aquí, descarga el original para imprimirlo.");
+    }
+  };
   const resolvedDownload = downloadUrl ?? `${src}${src.includes("?") ? "&" : "?"}download=1`;
 
   return createPortal(
@@ -63,12 +75,13 @@ export function OrbitDocumentViewer({ title, src, onClose, downloadUrl }: OrbitD
         <Button asChild className="min-h-11 min-w-11" size="icon" variant="ghost">
           <a aria-label="Descargar documento" href={resolvedDownload}><Download/></a>
         </Button>
+        <Button aria-label="Imprimir documento" className="min-h-11 min-w-11" disabled={!loaded} onClick={print} size="icon" variant="ghost" type="button"><Printer/></Button>
         <Button aria-label="Compartir documento" className="hidden min-h-11 min-w-11 sm:inline-flex" onClick={share} size="icon" variant="ghost"><Share2/></Button>
         <Button aria-label="Cerrar y volver al Evento" className="min-h-11 min-w-11" onClick={close} size="icon" variant="ghost"><X/></Button>
       </header>
-      {message ? <p className="shrink-0 px-4 py-2 text-center text-xs text-success">{message}</p> : null}
+      {message ? <p role="status" className="shrink-0 px-4 py-2 text-center text-xs text-success">{message}</p> : null}
       <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto bg-white">
-        <iframe className="block h-full min-h-0 w-full max-w-full border-0 bg-white" src={src} title={title}/>
+        <iframe className="block h-full min-h-0 w-full max-w-full border-0 bg-white" ref={frame} onLoad={() => setLoaded(true)} src={src} title={title}/>
       </div>
     </div>,
     document.body,
