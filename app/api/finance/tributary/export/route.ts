@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import ExcelJS from "exceljs";
+import JSZip from "jszip";
 
 export async function GET(request: Request) {
   const client = await createSupabaseServerClient();
@@ -9,11 +11,16 @@ export async function GET(request: Request) {
   if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) return new NextResponse("No autorizado", { status: 403 });
   const { searchParams } = new URL(request.url);
   const year = searchParams.get("year"); const month = searchParams.get("month"); const format = searchParams.get("format") ?? "csv";
+  const simulation = searchParams.get("scope") === "simulation";
   if ((year !== null && !/^[1-9]\d{3}$/.test(year))
     || (month !== null && (year === null || !/^(?:0?[1-9]|1[0-2])$/.test(month)))) {
     return new NextResponse("Período inválido. Indica un año y, opcionalmente, un mes del 1 al 12.", { status: 400 });
   }
-  let query = client.from(searchParams.get("scope") === "simulation" ? "tributary_simulation_export" : "tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin").order("occurred_on", { ascending: true });
+  if (format === "zip" && (simulation || !year || !month)) {
+    return new NextResponse("El paquete del contador requiere año y mes del registro interno.", { status: 400 });
+  }
+  let query = client.from(simulation ? "tributary_simulation_export" : "tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin", { count: "exact" }).order("occurred_on", { ascending: true });
+  if (!simulation) query = query.in("record_origin", ["EXTERNAL_SII", "EXPENSE"]);
   if (year !== null) {
     const firstMonth = month === null ? 1 : Number(month);
     const nextYear = month === null || firstMonth === 12 ? Number(year) + 1 : Number(year);
@@ -22,11 +29,44 @@ export async function GET(request: Request) {
     const end = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
     query = query.gte("occurred_on", start).lt("occurred_on", end);
   }
-  const { data, error } = await query;
+  const { data, error, count } = await query;
   if (error) return new NextResponse(error.message, { status: 500 });
   const headers = ["tipo","documento","referencia","fecha","neto","exento","iva","total","estado_pago","origen"];
-  const esc=(v:unknown)=>`"${String(v??"").replaceAll('"','""')}"`;
-  const csv = "\uFEFF" + [headers, ...(data??[]).map(row=>[row.source_type,row.document_type,row.reference,row.occurred_on,row.net_amount,row.exempt_amount,row.vat_amount,row.total_amount,row.payment_status,row.record_origin])].map(row=>row.map(esc).join(";")).join("\n");
+  const rows = data ?? [];
+  if (count !== null && count > rows.length) return new NextResponse("El resultado excede el límite de exportación. Usa un período menor.", { status: 422 });
+  type Row = (typeof rows)[number];
+  const values = (r: Row) => [r.source_type,r.document_type,r.reference,r.occurred_on,r.net_amount,r.exempt_amount,r.vat_amount,r.total_amount,r.payment_status,r.record_origin];
+  const esc = (v: unknown) => {
+    const raw = String(v ?? "");
+    const safe = typeof v === "string" && /^[\s]*[=+@-]/.test(raw) && !/^-?\d+(?:\.\d+)?$/.test(raw) ? "'" + raw : raw;
+    return `"${safe.replaceAll('"', '""')}"`;
+  };
+  const toCsv = (selected: Row[]) => "\uFEFF" + [headers, ...selected.map(values)].map(row => row.map(esc).join(";")).join("\n");
+  const csv = toCsv(rows);
+  if (format === "zip") {
+    const period = `${year}-${String(month).padStart(2, "0")}`;
+    const purchases = rows.filter(r => r.record_origin === "EXPENSE");
+    const sales = rows.filter(r => r.record_origin === "EXTERNAL_SII");
+    const pending = rows.filter(r => !r.document_type || !r.reference || r.net_amount == null || r.vat_amount == null || r.total_amount == null
+      || Number(r.net_amount) + Number(r.exempt_amount ?? 0) + Number(r.vat_amount) !== Number(r.total_amount));
+    const zip = new JSZip();
+    const workbook = new ExcelJS.Workbook();
+    for (const [label, selected] of [["Compras", purchases], ["Ventas", sales], ["Por revisar", pending]] as const) {
+      zip.file(`${label.toLowerCase().replaceAll(" ", "-")}.csv`, toCsv(selected));
+      const sheet = workbook.addWorksheet(label);
+      sheet.addRow(headers);
+      for (const row of selected) sheet.addRow(values(row));
+    }
+    zip.file("registro-interno.xlsx", new Uint8Array(await workbook.xlsx.writeBuffer()));
+    zip.file("LEEME.txt", [
+      `ORBIT · Registro interno del período ${period}`,
+      `Compras: ${purchases.length} · Ventas documentadas: ${sales.length} · Filas por revisar: ${pending.length}`,
+      "La columna IVA contiene el monto registrado por documento. No determina derecho a crédito fiscal ni saldo oficial SII.",
+      "No incluye simulaciones, boletas Staff, comprobantes adjuntos ni XML oficiales.",
+    ].join("\n"));
+    const output = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+    return new NextResponse(output as BodyInit, { headers: { "Content-Type": "application/zip", "Content-Disposition": `attachment; filename="orbit-contador-${period}.zip"`, "Cache-Control": "no-store" } });
+  }
   if (format === "xls") {
     const body = `<html><head><meta charset="utf-8"></head><body><table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${(data ?? []).map((row) => {
       const values = [row.source_type,row.document_type,row.reference,row.occurred_on,row.net_amount,row.exempt_amount,row.vat_amount,row.total_amount,row.payment_status,row.record_origin];
