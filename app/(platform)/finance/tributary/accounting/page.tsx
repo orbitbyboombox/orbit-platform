@@ -7,11 +7,11 @@ import { SiiRcvPreview } from "@/features/finance/components/sii-rcv-preview";
 import { loadRcvReport, loadStaffPeriodAmounts, siiCompanyRut, summarizeRcvAmounts, periodBounds } from "@/features/finance/sii-rcv-report";
 import { recordRcvPeriodEvent } from "@/features/finance/sii-rcv-actions";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, getSupabaseRenderUser } from "@/lib/supabase/server";
 
 export default async function AccountingPage({ searchParams }: { searchParams: Promise<{ period?: string; year?: string; month?: string; libro?: string; module?: string; page?: string; issued?: string; type?: string; category?: string; match?: string; document?: string }> }) {
   const client = await createSupabaseServerClient();
-  const { data: { user } } = await client.auth.getUser();
+  const { data: { user } } = await getSupabaseRenderUser();
   if (!user) notFound();
   const { data: profile } = await client.from("profiles").select("role").eq("id", user.id).single();
   if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) notFound();

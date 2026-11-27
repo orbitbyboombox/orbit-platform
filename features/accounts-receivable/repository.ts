@@ -68,9 +68,13 @@ export async function loadAccountsReceivable(
   client: SupabaseClient,
   options: { refreshNotifications?: boolean } = {},
 ): Promise<ReceivableDataset> {
-  if (options.refreshNotifications !== false && !isReadOnlyVisualPreview()) {
-    await client.rpc("refresh_receivable_notifications");
-  }
+  const notifications = (async () => {
+    if (options.refreshNotifications !== false && !isReadOnlyVisualPreview()) {
+      await client.rpc("refresh_receivable_notifications");
+    }
+    return client.from("internal_notifications").select("project_id,notification_type,metadata")
+      .in("notification_type", ["COLLECTION_D10", "COLLECTION_OVERDUE_AUTOMATIC"]);
+  })();
   const [
     invoicesResult,
     historyResult,
@@ -124,7 +128,7 @@ export async function loadAccountsReceivable(
     client.from("communications").select("id,project_id,communication_type,channel,subject,status,occurred_at,sent_at,to_recipient,created_by,sent_by,failure_reason,external_message_id,context_snapshot").in("communication_type",["PAYMENT_REMINDER","COLLECTION_EMAIL","COLLECTION_D10","COLLECTION_OVERDUE_AUTOMATIC","COLLECTION_EMAIL_CONSOLIDATED","COLLECTION_WHATSAPP_OPENED","COLLECTION_EMAIL_OPENED","COLLECTION_PHONE_OPENED"]).order("occurred_at",{ascending:false}),
     client.from("financial_event_records").select("project_id,payment_schedule"),
     client.from("d10_manual_collection_schedules").select("project_id,scheduled_for"),
-    client.from("internal_notifications").select("project_id,notification_type,metadata").in("notification_type",["COLLECTION_D10","COLLECTION_OVERDUE_AUTOMATIC"]),
+    notifications,
   ]);
   const failure = [
     invoicesResult,

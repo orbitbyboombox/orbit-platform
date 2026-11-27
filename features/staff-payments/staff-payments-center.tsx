@@ -594,7 +594,7 @@ export function StaffPaymentsCenter({
           })}
         </div>
       </section>
-      <StaffFinanceDriveSync />
+      <StaffFinanceDriveSync month={month} />
       <QuickStaffPayment rows={rows} />
 
       <PaymentSheet month={month} rows={rows} />
@@ -738,13 +738,13 @@ type DriveSyncSummary = {
   results: DriveSyncItem[];
 };
 
-function StaffFinanceDriveSync() {
+function StaffFinanceDriveSync({ month }: { month: string }) {
   const [syncing, setSyncing] = useState(false);
   const [status, setStatus] = useState<DriveSyncStatus>("PENDING");
   const [summary, setSummary] = useState<DriveSyncSummary | null>(null);
   const [message, setMessage] = useState("");
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const runSync = async () => {
+  const runSync = async (pendingOnly = false) => {
     if (syncing) return;
     setSyncing(true);
     setMessage("");
@@ -752,7 +752,7 @@ function StaffFinanceDriveSync() {
       const response = await fetch("/api/integrations/google-drive/staff-finance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ from: "2026-08-01", to: "2026-10-01" }),
+        body: JSON.stringify(pendingOnly ? { pendingExpenseMonth: month } : { from: "2026-08-01", to: "2026-10-01" }),
       });
       const data = (await response.json().catch(() => ({}))) as {
         ok?: boolean;
@@ -796,9 +796,10 @@ function StaffFinanceDriveSync() {
         <StatusBadge label={status} variant={statusVariant} />
       </div>
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <button className="inline-flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground" aria-busy={syncing} disabled={syncing} onClick={runSync} type="button">
+        <button className="inline-flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground" aria-busy={syncing} disabled={syncing} onClick={() => void runSync()} type="button">
           {syncing ? "Sincronizando documentos Staff con Google Drive…" : "SINCRONIZAR DOCUMENTOS A DRIVE"}
         </button>
+        <button className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold" disabled={syncing} onClick={() => void runSync(true)} type="button">Sincronizar comprobantes pendientes del mes</button>
         {summary ? <button className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold" onClick={() => setDetailsOpen((value) => !value)} type="button">{detailsOpen ? "OCULTAR DETALLE" : "VER DETALLE"}</button> : null}
       </div>
       {summary ? <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4"><DriveMetric label="Procesados" value={summary.processed} /><DriveMetric label="Sincronizados" value={summary.synced} /><DriveMetric label="Requieren revisión" value={summary.requiresReview} /><DriveMetric label="Errores" value={summary.errors} /></div> : null}

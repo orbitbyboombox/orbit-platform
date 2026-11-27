@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { loadFounderActionCount } from "@/features/founder-action-center";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createSupabaseServerClient, getSupabaseRenderUser } from "@/lib/supabase/server";
 import { isInvalidSessionError, isMissingSessionError } from "@/lib/supabase/auth-errors";
 import { loadModuleStatesCached } from "@/features/module-manager/repository";
 import { loadFounderWorkspaceCached } from "@/features/founder-workspace/repository";
@@ -11,9 +11,10 @@ import { isMetaReviewerRole } from "@/lib/auth/roles";
 export const dynamic = "force-dynamic";
 
 export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
-  const client=await createSupabaseServerClient();const{data,error}=await client.auth.getUser();
+  const{data,error}=await getSupabaseRenderUser();
   if(error){if(isMissingSessionError(error))redirect("/login");if(isInvalidSessionError(error))redirect("/api/auth/session-expired");throw error}
   const user=data.user;if(!user?.email)redirect("/login");
+  const client=await createSupabaseServerClient();
   const{data:profile,error:profileError}=await client.from("profiles").select("role,display_name").eq("id",user.id).maybeSingle();if(profileError)throw profileError;if(!profile||(!["CEO","ADMINISTRATOR"].includes(profile.role)&&!isMetaReviewerRole(profile.role)))redirect(profile?.role==="STAFF"?"/login?access=staff":"/login?access=customer");
   if(isMetaReviewerRole(profile.role))return <>{children}</>;
   // Module definitions are provisioned by the module-management workflow;

@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { assertSupabaseEnvironmentSafe, isReadOnlyVisualPreview } from "./environment-guard";
@@ -23,6 +24,12 @@ export async function createSupabaseServerClient() {
   });
   return isReadOnlyVisualPreview() ? makeReadOnlyVisualPreviewClient(client) : client;
 }
+
+// React scopes this memo to one server render. Server actions keep their own auth validation.
+export const getSupabaseRenderUser = cache(async () => {
+  const client = await createSupabaseServerClient();
+  return client.auth.getUser();
+});
 
 export async function createSupabaseServerActionClient() {
   const { cookieStore, publishableKey, url } = await getSupabaseServerConfig();
