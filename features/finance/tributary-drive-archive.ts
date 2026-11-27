@@ -13,7 +13,13 @@ const categories: Record<string, string> = {
 };
 const allowedId = /^[A-Za-z0-9_-]+$/;
 
-type DriveFile = { id: string; name?: string; mimeType?: string; trashed?: boolean; parents?: string[]; sha256Checksum?: string; shortcutDetails?: { targetId: string } };
+const PRIVATE_FIELDS = "shared,permissions(type,role)";
+type DriveFile = { shared?: boolean; permissions?: {type: string; role: string}[]; id: string; name?: string; mimeType?: string; trashed?: boolean; parents?: string[]; sha256Checksum?: string; shortcutDetails?: { targetId: string } };
+
+function isOwnerOnly(file: DriveFile) {
+  return file.shared === false && file.permissions?.length === 1
+    && file.permissions[0].type === "user" && file.permissions[0].role === "owner";
+}
 
 export function resolveTributaryArchivePath(issueDate: string, type: string, kind: "PDF" | "XML" | "ACUSE" | "CSV") {
   const date = /^([1-9]\d{3})-(0[1-9]|1[0-2])-\d{2}$/.exec(issueDate);
@@ -37,8 +43,8 @@ export function createTributaryDriveArchive(token: string, transport: typeof fet
 
   return {
     async resolveFolder(issueDate: string, type: string, kind: "PDF" | "XML" | "ACUSE" | "CSV") {
-      const root = await request<DriveFile>(`files/${ARCHIVE_ROOT}`, { fields: "id,name,mimeType,trashed", supportsAllDrives: "true" });
-      if (root.id !== ARCHIVE_ROOT || root.name !== "FINANZAS SII" || root.mimeType !== DIRECTORY || root.trashed) {
+      const root = await request<DriveFile>(`files/${ARCHIVE_ROOT}`, { fields: `id,name,mimeType,trashed,${PRIVATE_FIELDS}`, supportsAllDrives: "true" });
+      if (root.id !== ARCHIVE_ROOT || root.name !== "FINANZAS SII" || root.mimeType !== DIRECTORY || root.trashed !== false || !isOwnerOnly(root)) {
         throw new Error("La carpeta oficial FINANZAS SII no está disponible.");
       }
       let parent = root.id;
@@ -50,7 +56,14 @@ export function createTributaryDriveArchive(token: string, transport: typeof fet
         if (result.files.length !== 1 || result.nextPageToken || !allowedId.test(result.files[0].id)) {
           throw new Error(`Destino existente ausente o ambiguo: ${name}.`);
         }
-        parent = result.files[0].id;
+        const folder = await request<DriveFile>(`files/${result.files[0].id}`, {
+          fields: `id,name,mimeType,trashed,parents,${PRIVATE_FIELDS}`, supportsAllDrives: "true",
+        });
+        if (folder.id !== result.files[0].id || folder.name !== name || folder.mimeType !== DIRECTORY
+          || folder.trashed !== false || folder.parents?.length !== 1 || folder.parents[0] !== parent || !isOwnerOnly(folder)) {
+          throw new Error("La carpeta tributaria no coincide con el destino privado esperado.");
+        }
+        parent = folder.id;
       }
       return parent;
     },
@@ -63,7 +76,7 @@ export function createTributaryDriveArchive(token: string, transport: typeof fet
     async archiveCsv(input: { id: string; parentId: string; name: string; bytes: Uint8Array; checksum: string; mimeType?: "text/csv" | "application/pdf" }) {
       if (![input.id, input.parentId].every(id => allowedId.test(id))) throw new Error("Identificador de Drive inválido.");
       const mimeType = input.mimeType ?? "text/csv";
-      const fields = "id,name,mimeType,trashed,parents,sha256Checksum";
+      const fields = `id,name,mimeType,trashed,parents,sha256Checksum,${PRIVATE_FIELDS}`;
       const query = { fields, supportsAllDrives: "true" };
       const url = new URL("https://www.googleapis.com/upload/drive/v3/files");
       url.search = new URLSearchParams({ ...query, uploadType: "multipart" }).toString();
@@ -79,28 +92,33 @@ export function createTributaryDriveArchive(token: string, transport: typeof fet
         ]),
         signal: AbortSignal.timeout(10000),
       });
-      const file = response.status === 409 ? await request<DriveFile>(`files/${input.id}`, query)
-        : response.ok ? await response.json() as DriveFile : null;
-      if (!file || file.id !== input.id || file.trashed || file.mimeType !== mimeType || file.name !== input.name
+      const file = response.ok || response.status === 409 ? await request<DriveFile>(`files/${input.id}`, query) : null;
+      if (!file || file.id !== input.id || file.trashed !== false || !isOwnerOnly(file) || file.mimeType !== mimeType || file.name !== input.name
         || file.parents?.length !== 1 || file.parents[0] !== input.parentId || file.sha256Checksum !== input.checksum) {
         throw new Error("No se pudo comprobar el respaldo CSV en Drive.");
       }
       return file.id;
     },
-    async archiveShortcut(input: { id: string; parentId: string; targetId: string; name: string }) {
+    async archiveShortcut(input: { id: string; parentId: string; targetId: string; name: string; expectedChecksum?: string }) {
       if (![input.id, input.parentId, input.targetId].every(id => allowedId.test(id))) throw new Error("Identificador de Drive inválido.");
-      const fields = "id,mimeType,trashed,parents,shortcutDetails(targetId)";
+      const target = await request<DriveFile>(`files/${input.targetId}`, { fields: "id,mimeType,trashed,sha256Checksum", supportsAllDrives: "true" });
+      if (target.id !== input.targetId || target.mimeType !== "application/pdf" || target.trashed) {
+        throw new Error("El PDF original no está disponible o no corresponde al tipo esperado.");
+      }
+      if (input.expectedChecksum !== undefined && (!/^[a-f0-9]{64}$/i.test(input.expectedChecksum) || target.sha256Checksum?.toLowerCase() !== input.expectedChecksum.toLowerCase())) {
+        throw new Error("La huella SHA-256 del PDF original no coincide con la esperada.");
+      }
+      const fields = `id,name,mimeType,trashed,parents,shortcutDetails(targetId),${PRIVATE_FIELDS}`;
       const query = { fields, supportsAllDrives: "true" };
-      let file: DriveFile;
       try {
-        file = await request<DriveFile>("files", query, {
+        await request<DriveFile>("files", query, {
           id: input.id, name: input.name, mimeType: SHORTCUT, parents: [input.parentId], shortcutDetails: { targetId: input.targetId },
         });
       } catch (error) {
         if (!(error instanceof Error) || error.message !== "Drive respondió HTTP 409.") throw error;
-        file = await request<DriveFile>(`files/${input.id}`, query);
       }
-      if (file.id !== input.id || file.mimeType !== SHORTCUT || file.trashed
+      const file = await request<DriveFile>(`files/${input.id}`, query);
+      if (file.id !== input.id || file.name !== input.name || file.mimeType !== SHORTCUT || file.trashed !== false || !isOwnerOnly(file)
         || file.parents?.length !== 1 || file.parents[0] !== input.parentId
         || file.shortcutDetails?.targetId !== input.targetId) {
         throw new Error("El vínculo almacenado en Drive no coincide con el documento y destino esperados.");

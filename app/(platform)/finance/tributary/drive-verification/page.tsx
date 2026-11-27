@@ -1,9 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import { notFound, redirect } from "next/navigation";
 import { getGoogleWorkspaceAdministrator } from "@/features/connectors/google-workspace/application/google-workspace.authorization.guard";
-import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
+import { loadLegacyOwnerDriveRepairToken } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { createRefreshingDriveTransport, createTributaryDriveArchive } from "@/features/finance/tributary-drive-archive";
 
+export const maxDuration = 300;
+
+const owner = "matias@boom-box.cl";
+const loadArchiveToken = () => loadLegacyOwnerDriveRepairToken(owner);
 const route = "/finance/tributary/drive-verification";
 
 function syntheticPdf() {
@@ -32,21 +36,20 @@ async function verifyDrive() {
   let conflicts = 0;
   let transport: typeof fetch | undefined;
   try {
-    const token = await loadGoogleWorkspaceAccessToken();
+    const token = await loadArchiveToken();
     const measuredFetch: typeof fetch = async (input, init) => {
       const result = await fetch(input, init);
       if (result.status === 409) conflicts++;
       return result;
     };
-    transport = createRefreshingDriveTransport(token, loadGoogleWorkspaceAccessToken, measuredFetch);
+    transport = createRefreshingDriveTransport(token, loadArchiveToken, measuredFetch);
     const archive = createTributaryDriveArchive(token, transport);
     status = "identity";
     // Read-only check of the effective Drive principal; do not expose tokens or provider bodies.
     const about = await transport("https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)", {signal:AbortSignal.timeout(10000)});
     if (!about.ok) throw new Error("Identidad Drive no verificable.");
     const principal = await about.json() as {user?:{emailAddress?:string}};
-    const connection = await loadGoogleWorkspaceConnection();
-    if (!principal.user?.emailAddress || !connection.workspaceAccount || principal.user.emailAddress.toLowerCase() !== connection.workspaceAccount.toLowerCase()) { status = "identity-mismatch"; throw new Error("Identidad Drive distinta."); }
+    if (!principal.user?.emailAddress || principal.user.emailAddress.toLowerCase() !== owner) { status = "identity-mismatch"; throw new Error("Identidad Drive distinta."); }
     status = "root-access";
     const root = await transport("https://www.googleapis.com/drive/v3/files/1ptC-FNBe5rbsMB9SDgmdSbCJs6AsRvdc?fields=id,name,mimeType,trashed,capabilities(canAddChildren)&supportsAllDrives=true", {signal:AbortSignal.timeout(10000)});
     if (!root.ok) { status = root.status === 404 ? "root-invisible" : root.status === 403 ? "root-denied" : "root-unavailable"; throw new Error("Raíz no verificable."); }
@@ -71,12 +74,11 @@ async function verifyDrive() {
     await archive.archiveCsv({ id: pdfId, parentId: pdfFolder, name: `ORBIT-QA-${suffix}.pdf`, bytes: pdf, checksum: digest(pdf), mimeType: "application/pdf" });
     const shortcutId = await archive.reserveId();
     fixtures.push(shortcutId);
-    const shortcut = { id: shortcutId, parentId: pdfFolder, name: `ORBIT-QA-${suffix}-vinculo.pdf`, targetId: pdfId };
+    const shortcut = { id: shortcutId, parentId: pdfFolder, name: `ORBIT-QA-${suffix}-vinculo.pdf`, targetId: pdfId, expectedChecksum: digest(pdf) };
     await archive.archiveShortcut(shortcut);
 
     status = "replay";
-    await archive.archiveCsv(csvInput);
-    await archive.archiveShortcut(shortcut);
+    await Promise.all([archive.archiveCsv(csvInput), archive.archiveShortcut(shortcut)]);
     if (conflicts !== 2) throw new Error("Drive no confirmó ambos reintentos.");
     status = "passed";
   } catch (error) {
