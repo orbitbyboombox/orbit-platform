@@ -19,7 +19,7 @@ revoke execute on function public.enqueue_external_tax_pdf_archive() from public
 
 drop trigger if exists enqueue_external_tax_pdf_archive on public.documents;
 create trigger enqueue_external_tax_pdf_archive
-after insert on public.documents
+after insert or update of drive_file_id, document_type, mime_type, project_id, customer_id, external_issue_date, external_tax_document_type, deleted_at on public.documents
 for each row
 when (
   new.document_type = 'EXTERNAL_TAX_DOCUMENT'
@@ -28,6 +28,7 @@ when (
   and new.project_id is not null
   and new.customer_id is not null
   and new.external_issue_date is not null
+  and new.external_tax_document_type is not null
   and new.deleted_at is null
 )
 execute function public.enqueue_external_tax_pdf_archive();
