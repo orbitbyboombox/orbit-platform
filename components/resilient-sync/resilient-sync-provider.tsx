@@ -88,6 +88,7 @@ export function ResilientSyncProvider({
   userId: string;
 }) {
   const runtime = useRef<Runtime | null>(null);
+  const refreshInFlightRef = useRef<Promise<void> | null>(null);
   const onlineRef = useRef(true);
   const syncingRef = useRef(false);
   const [online, setOnline] = useState(true);
@@ -104,8 +105,10 @@ export function ResilientSyncProvider({
   latestSnapshotRef.current = snapshot;
 
   const refresh = useCallback(async () => {
-    if (!runtime.current) return;
-    const [nextSnapshot, localOperations, localFiles, remote] = await Promise.all([
+    if (refreshInFlightRef.current) return refreshInFlightRef.current;
+    const run = (async () => {
+      if (!runtime.current) return;
+      const [nextSnapshot, localOperations, localFiles, remote] = await Promise.all([
       runtime.current.status(),
       runtime.current.listOperations(),
       runtime.current.listFiles(),
@@ -162,7 +165,14 @@ export function ResilientSyncProvider({
         documents.detail = `${localFilesPending.length} archivo(s) seguros en este dispositivo`;
       }
     }
-    setAreas(projected);
+      setAreas(projected);
+    })();
+    refreshInFlightRef.current = run;
+    try {
+      await run;
+    } finally {
+      if (refreshInFlightRef.current === run) refreshInFlightRef.current = null;
+    }
   }, []);
 
   useEffect(() => {
@@ -249,7 +259,7 @@ export function ResilientSyncProvider({
         || current.errors > 0
         || current.conflicts > 0
         || current.blocked > 0;
-      const delay = document.hidden ? 60_000 : activeSync ? 5_000 : 30_000;
+      const delay = document.hidden ? 60_000 : activeSync ? 15_000 : 30_000;
       timer = window.setTimeout(async () => {
         await refresh();
         scheduleRefresh();

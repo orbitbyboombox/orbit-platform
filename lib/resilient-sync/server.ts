@@ -25,13 +25,13 @@ function digest(timestamp: string, value: string) {
 
 export async function requireLocalSyncActor() {
   const db = await createSupabaseServerClient();
+  const session = await db.auth.getSession();
+  const accessToken = session.data.session?.access_token;
+  if (!accessToken) throw new Error("SYNC_SESSION_REQUIRED");
   const auth = await db.auth.getUser();
   if (!auth.data.user) throw new Error("SYNC_SESSION_REQUIRED");
   const profile = await db.from("profiles").select("role").eq("id", auth.data.user.id).maybeSingle();
   if (!profile.data || !allowedRoles.has(profile.data.role)) throw new Error("SYNC_FORBIDDEN");
-  const session = await db.auth.getSession();
-  const accessToken = session.data.session?.access_token;
-  if (!accessToken) throw new Error("SYNC_SESSION_REQUIRED");
   const mappedRole = profile.data.role === "CEO" ? "founder" : profile.data.role === "ADMINISTRATOR" ? "admin" : profile.data.role === "SALES" ? "commercial" : "logistics";
   return { id: auth.data.user.id, role: mappedRole, accessToken };
 }
@@ -42,8 +42,14 @@ function signedActorHeaders(actor: { id: string; role: string; accessToken: stri
   return { authorization: `Bearer ${clientToken()}`, "x-orbit-client-token": clientToken(), "x-orbit-actor-id": actor.id, "x-orbit-actor-role": actor.role, "x-orbit-actor-timestamp": timestamp, "x-orbit-actor-signature": digest(timestamp, value), "x-orbit-actor-token": actor.accessToken };
 }
 
-export async function forwardToCore(path: string, init: RequestInit, actor: { id: string; role: string; accessToken: string }) {
-  return fetch(new URL(path, process.env.ORBIT_CONNECT_BASE_URL ?? "https://connect.orbitnova.cl"), { ...init, cache: "no-store", headers: { ...signedActorHeaders(actor), ...(init.headers ?? {}) } });
+export async function forwardToCore(path: string, init: RequestInit, actor: { id: string; role: string; accessToken: string }, timeoutMs = 12_000) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(new URL(path, process.env.ORBIT_CONNECT_BASE_URL ?? "https://connect.orbitnova.cl"), { ...init, cache: "no-store", signal: controller.signal, headers: { ...signedActorHeaders(actor), ...(init.headers ?? {}) } });
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export function verifyAdapterRequest(timestamp: string, body: string, signature: string) {
