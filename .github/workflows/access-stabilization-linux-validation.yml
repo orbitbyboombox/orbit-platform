@@ -36,7 +36,7 @@ jobs:
         with:
           node-version: '22'
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm exec tsc --noEmit
       - run: pnpm exec eslint 'app/(platform)/layout.tsx' 'features/founder-action-center/index.ts' lib/supabase/auth-errors.ts lib/supabase/middleware.ts lib/supabase/fetch-with-retry.ts tests/auth-transport-recovery.test.mts tests/dashboard-quick-diagnostics.test.mts tests/performance-staff-shell.test.mts tests/supabase-fetch-with-retry.test.mts
       - run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/auth-transport-recovery.test.mts tests/dashboard-quick-diagnostics.test.mts tests/performance-staff-shell.test.mts tests/supabase-fetch-with-retry.test.mts
