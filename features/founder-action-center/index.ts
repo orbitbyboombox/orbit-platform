@@ -1,10 +1,7 @@
 import "server-only";
 import { isNoIssueObservation, mapIncidentObservation, type IncidentObservation } from "@/features/resources/incident-observation";
-import { after } from "next/server";
 import { cache } from "react";
-import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { isReadOnlyVisualPreview } from "@/lib/supabase/environment-guard";
 import { isPhysicalConfigurationReady } from "./diagnostic-model";
 import { founderActionHref, isFounderActionVisible } from "./visibility";
 
@@ -78,41 +75,6 @@ const canonicalFounderActionTypes = new Set<string>(
   canonicalFounderActionTypeList,
 );
 
-const reconcileFounderActionSources = unstable_cache(
-  async () => {
-    const admin = createAdminClient();
-    const [
-      { error: salesError },
-      { error: whatsappError },
-      { error: operationalError },
-    ] = await Promise.all([
-      admin.rpc("reconcile_sales_pipeline_founder_alerts"),
-      admin.rpc("reconcile_whatsapp_founder_alerts"),
-      admin.rpc("reconcile_operational_agenda_alerts"),
-    ]);
-    for (const error of [salesError, whatsappError, operationalError]) {
-      if (error && !["42883", "PGRST202"].includes(error.code ?? "")) throw error;
-    }
-
-    const [{ error: closedSalesError }, { error: closedStateError }] =
-      await Promise.all([
-        admin.rpc("close_noncommercial_sales_alerts"),
-        admin.rpc("close_closed_sales_alerts"),
-      ]);
-    for (const error of [closedSalesError, closedStateError]) {
-      if (error && !["42883", "PGRST202"].includes(error.code ?? "")) throw error;
-    }
-
-    const { error: reconciliationError } = await admin.rpc(
-      "reconcile_founder_action_alerts",
-    );
-    if (reconciliationError) throw reconciliationError;
-    return true;
-  },
-  ["founder-action-reconciliation-v2"],
-  { revalidate: 30 },
-);
-
 async function loadAllFounderNotifications(admin: ReturnType<typeof createAdminClient>) {
   const page = (offset: number) => admin.from("internal_notifications").select("id,notification_type,title,message,created_at,category,priority,related_href,entity_type,entity_id,metadata,projects(pipeline_stage,operations,project_operational_contracts(readiness_status))")
     .eq("action_required", true).neq("status", "RESOLVED")
@@ -133,21 +95,6 @@ async function loadAllFounderNotifications(admin: ReturnType<typeof createAdminC
 const loadFounderActionCenterCached = cache(
   async (userId: string): Promise<FounderActionCenter> => {
     const admin = createAdminClient();
-    if (!isReadOnlyVisualPreview()) {
-      // Keep alert reconciliation off the dashboard's critical render path.
-      // Existing notification rows are returned immediately; reconciliation
-      // still runs after the response and retains its 30-second cache.
-      after(async () => {
-        try {
-          await reconcileFounderActionSources();
-        } catch (error) {
-          console.error(
-            "[founder-action-center] Deferred reconciliation failed",
-            error instanceof Error ? error.message : "Unknown error",
-          );
-        }
-      });
-    }
     const [
       { data: rows, error },
       { data: states, error: statesError },
