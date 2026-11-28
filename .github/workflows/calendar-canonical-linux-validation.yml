@@ -125,7 +125,7 @@ jobs:
           where id='20000000-0000-0000-0000-000000000002';
           SQL
           expected=$(psql -h 127.0.0.1 -U postgres -d calendar_test -Atqc "select updated_at from public.calendar_sync where id='20000000-0000-0000-0000-000000000002'")
-          call="select public.apply_canonical_calendar_event_update('20000000-0000-0000-0000-000000000002','ORB-TEST-370-002','\$expected'::timestamptz,'source-hash-2','source-hash-2','remote-hash-2','etag-2','2026-11-27T12:00:00Z'::timestamptz,'{\"id\":\"remote-370-002\",\"calendarId\":\"calendar-370\",\"etag\":\"etag-2\"}'::jsonb,2,'00000000-0000-0000-0000-000000000001');"
+          call="select public.apply_canonical_calendar_event_update('20000000-0000-0000-0000-000000000002','ORB-TEST-370-002','${expected}'::timestamptz,'source-hash-2','source-hash-2','remote-hash-2','etag-2','2026-11-27T12:00:00Z'::timestamptz,'{\"id\":\"remote-370-002\",\"calendarId\":\"calendar-370\",\"etag\":\"etag-2\"}'::jsonb,2,'00000000-0000-0000-0000-000000000001');"
           (printf "set role authenticated; select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',false); %s\n" "$call" | psql -h 127.0.0.1 -U postgres -d calendar_test -v ON_ERROR_STOP=1) &
           (printf "set role authenticated; select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-000000000001',false); %s\n" "$call" | psql -h 127.0.0.1 -U postgres -d calendar_test -v ON_ERROR_STOP=1) &
           wait
