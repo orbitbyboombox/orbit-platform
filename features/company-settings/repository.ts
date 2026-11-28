@@ -27,5 +27,16 @@ export const loadCompanySettingsCached = unstable_cache(
 export async function loadCompanySettingsForLayout(): Promise<CompanySettings> {
   const adminKey = process.env.SUPABASE_SECRET_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!adminKey) return DEFAULT_COMPANY_SETTINGS;
-  return loadCompanySettingsCached();
+  // Company settings are presentation chrome; a slow control-plane read must
+  // never keep the entire authenticated application on the root loading shell.
+  // The cached read remains the source of truth and the safe defaults are only
+  // used when the read is unavailable within the bounded startup window.
+  try {
+    return await Promise.race([
+      loadCompanySettingsCached(),
+      new Promise<CompanySettings>((resolve) => setTimeout(() => resolve(DEFAULT_COMPANY_SETTINGS), 5_000)),
+    ]);
+  } catch {
+    return DEFAULT_COMPANY_SETTINGS;
+  }
 }
