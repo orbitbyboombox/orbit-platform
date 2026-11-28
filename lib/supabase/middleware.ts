@@ -10,7 +10,7 @@ export async function updateSession(request: NextRequest) {
   const publishableKey = process.env.SUPABASE_PUBLISHABLE_KEY;
   if (!url || !publishableKey) return NextResponse.redirect(new URL("/login", request.url));
   const cookieDefaults={httpOnly:true,path:"/",maxAge:60*60*24*365,sameSite:"lax" as const,secure:process.env.NODE_ENV==="production"};
-  const supabase = createServerClient(url,publishableKey,{global:{fetch:fetchWithSupabasePoolRetry},cookieOptions:cookieDefaults,cookies:{getAll:()=>request.cookies.getAll(),setAll:(items)=>{items.forEach(({name,value})=>request.cookies.set(name,value));response=NextResponse.next({request:{headers:new Headers(request.headers)}});items.forEach(({name,value,options})=>response.cookies.set(name,value,{...cookieDefaults,...options}))}}});
+  const supabase = createServerClient(url,publishableKey,{global:{fetch:(input, init) => fetchWithSupabasePoolRetry(input, { ...init, headers: { ...(init?.headers ?? {}), "x-orbit-request-class": "auth" } })},cookieOptions:cookieDefaults,cookies:{getAll:()=>request.cookies.getAll(),setAll:(items)=>{items.forEach(({name,value})=>request.cookies.set(name,value));response=NextResponse.next({request:{headers:new Headers(request.headers)}});items.forEach(({name,value,options})=>response.cookies.set(name,value,{...cookieDefaults,...options}))}}});
   const isPublicEntry = request.nextUrl.pathname === "/" || request.nextUrl.pathname === "/login";
   let user: Awaited<ReturnType<typeof supabase.auth.getUser>>["data"]["user"] = null;
   let error: Awaited<ReturnType<typeof supabase.auth.getUser>>["error"] = null;
