@@ -14,6 +14,8 @@ test("canonical Calendar update is an authenticated, existing-event-only flow", 
   assert.doesNotMatch(source, /provider\.createEvent\(/);
   assert.doesNotMatch(source, /provider\.deleteEvent\(/);
   assert.match(actions, /updateCanonicalGoogleCalendarAction/);
+  assert.doesNotMatch(source, /RECONCILABLE_ORBIT_EVENT_IDS/);
+  assert.match(source, /acceptReviewedRemoteCalendarEvent/);
   assert.match(migration, /public\.can_administer\(\)/);
   assert.match(migration, /revoke all on function public\.apply_canonical_calendar_event_update/);
   assert.match(migration, /return 'ALREADY_SYNCHRONIZED'/);
@@ -26,4 +28,5 @@ test("canonical update persists only after ETag-backed readback", () => {
   assert.match(source, /verifyApprovedRemoteEvent\(input, expectedPayload, after\)/);
   assert.match(migration, /p_remote_snapshot->>'calendarId'/);
   assert.match(migration, /p_remote_snapshot->>'etag'/);
+  assert.match(source, /recoveredAfterRemoteWrite/);
 });
