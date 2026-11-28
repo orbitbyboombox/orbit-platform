@@ -16,5 +16,7 @@ test("staff audit history query is indexed and the platform shell does not recon
   assert.doesNotMatch(actionCenter, /reconcileFounderActionSources|reconcile_founder_action_alerts/);
   assert.match(actionCenter, /from "react"/);
   assert.match(actionCenter, /const loadFounderActionCenterCached = cache\(/);
-  assert.match(actionCenter, /loadFounderActionCount\(userId: string\)[\s\S]*return \(await loadFounderActionCenter\(userId\)\)\.count/);
+  assert.match(actionCenter, /const loadFounderActionBadgeCountCached = cache\(/);
+  assert.match(actionCenter, /loadFounderActionCount\(userId: string\)[\s\S]*return loadFounderActionBadgeCountCached\(userId\)/);
+  assert.doesNotMatch(actionCenter.slice(actionCenter.indexOf("const loadFounderActionBadgeCountCached")), /projects\(/);
 });
