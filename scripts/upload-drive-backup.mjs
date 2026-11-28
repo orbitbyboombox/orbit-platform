@@ -6,10 +6,9 @@ import { join } from "node:path";
 import { assertReadback } from "./backup-integrity.mjs";
 
 const [, , directory] = process.argv;
-const credentials = JSON.parse(process.env.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON ?? "");
 const parentId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
 if (!directory || !parentId) throw new Error("Drive backup configuration is incomplete");
-const auth = new google.auth.GoogleAuth({ credentials, scopes: ["https://www.googleapis.com/auth/drive"] });
+const auth = new google.auth.GoogleAuth({ scopes: ["https://www.googleapis.com/auth/drive"] });
 const drive = google.drive({ version: "v3", auth });
 const folder = await drive.files.create({ requestBody: { name: `ORBIT Supabase backup ${new Date().toISOString()}`, mimeType: "application/vnd.google-apps.folder", parents: [parentId] }, fields: "id,name", supportsAllDrives: true });
 const folderId = folder.data.id;
