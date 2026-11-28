@@ -1,0 +1,43 @@
+name: Access stabilization Linux validation
+
+on:
+  pull_request:
+    paths:
+      - 'app/(platform)/layout.tsx'
+      - 'features/founder-action-center/**'
+      - 'lib/supabase/auth-errors.ts'
+      - 'lib/supabase/fetch-with-retry.ts'
+      - 'lib/supabase/middleware.ts'
+      - 'tests/auth-transport-recovery.test.mts'
+      - 'tests/dashboard-quick-diagnostics.test.mts'
+      - 'tests/performance-staff-shell.test.mts'
+      - 'tests/supabase-fetch-with-retry.test.mts'
+      - '.github/workflows/access-stabilization-linux-validation.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: access-stabilization-linux-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm exec eslint 'app/(platform)/layout.tsx' 'features/founder-action-center/index.ts' lib/supabase/auth-errors.ts lib/supabase/middleware.ts lib/supabase/fetch-with-retry.ts tests/auth-transport-recovery.test.mts tests/dashboard-quick-diagnostics.test.mts tests/performance-staff-shell.test.mts tests/supabase-fetch-with-retry.test.mts
+      - run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/auth-transport-recovery.test.mts tests/dashboard-quick-diagnostics.test.mts tests/performance-staff-shell.test.mts tests/supabase-fetch-with-retry.test.mts
+      - run: pnpm exec next build
