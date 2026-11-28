@@ -1,9 +1,9 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { mapOperationalEventToCalendar, fingerprintCalendarOperationalInput } from "./google-calendar-live";
 import type { CalendarOperationalEventInput } from "../types/google-calendar-live.types";
 import type { GoogleCalendarApiProvider } from "../provider/google-calendar-live.provider";
 import { fingerprintReviewedCalendarEvent, verifyApprovedRemoteEvent } from "./calendar-remote-review-policy";
+import { mapOperationalEventToCalendar, fingerprintCalendarOperationalInput } from "./google-calendar-live";
 
 export const RECONCILABLE_ORBIT_EVENT_IDS = new Set([
   "ORB-2026-162036", "ORB-2026-438017", "ORB-2027-919683",
@@ -68,5 +68,58 @@ export async function acceptReviewedRemoteCalendarEvent(args: {
     throw new Error("Google Calendar cambió durante la aceptación. Se conservó la versión remota y ORBIT volvió a UPDATE_REQUIRED.");
   }
   return { result: result as string, orbitEventId, googleEventId: eventId, googleEventUrl: remoteUrl, etag: remote.etag, sourceHash: verified.sourceHash, remoteHash: verified.remoteHash, start: verified.start, end: verified.end };
+}
+
+/**
+ * Founder/Admin-only canonical write.  ORBIT is the source of truth here:
+ * read the current remote ETag, PATCH the existing event, read it back, then
+ * persist the verified snapshot transactionally.  No create/delete fallback is
+ * allowed.
+ */
+export async function updateCanonicalCalendarEvent(args: {
+  client: SupabaseClient;
+  provider: GoogleCalendarApiProvider;
+  input: CalendarOperationalEventInput;
+  actorId: string;
+  expectedCalendarId: string;
+}) {
+  const { client, provider, input, actorId, expectedCalendarId } = args;
+  const orbitEventId = input.orbitEventId;
+  if (!orbitEventId) throw new Error("El evento no tiene ORBIT Event ID.");
+  if (!provider.calendarId || provider.calendarId !== expectedCalendarId) throw new Error("El calendario autenticado no coincide con el destino persistido.");
+  const { data: rows, error } = await client.from("calendar_sync")
+    .select("id,orbit_event_id,project_id,status,updated_at,nova_external_event_id,external_event_id,nova_external_url,external_url,nova_calendar_id,current_payload_hash,current_event_revision")
+    .eq("orbit_event_id", orbitEventId).limit(2);
+  if (error) throw error;
+  if (!rows || rows.length !== 1) throw new Error(`Se esperaba una vinculación única para ${orbitEventId}.`);
+  const row = rows[0] as SyncSnapshot;
+  const eventId = row.nova_external_event_id ?? row.external_event_id;
+  const remoteUrl = row.nova_external_url ?? row.external_url;
+  if (!eventId || row.nova_calendar_id !== expectedCalendarId) throw new Error(`El destino persistido de ${orbitEventId} no está verificado.`);
+  const matches = await provider.findEventsByOrbitEventId(orbitEventId);
+  if (matches.length !== 1 || matches[0]?.id !== eventId) throw new Error(`La identidad de ${orbitEventId} encontró ${matches.length} eventos activos; no se actualizó Calendar.`);
+
+  const before = await provider.getEvent(eventId);
+  if (before.status !== "confirmed" || !before.etag || !before.updated) throw new Error(`El evento remoto de ${orbitEventId} no tiene estado/ETag verificable.`);
+  const expectedPayload = mapOperationalEventToCalendar(input);
+  const sourceHash = fingerprintCalendarOperationalInput(input);
+  const reference = await provider.updateEvent(eventId, expectedPayload, before.etag);
+  const after = await provider.getEvent(eventId);
+  const verified = verifyApprovedRemoteEvent(input, expectedPayload, after);
+  if (after.id !== eventId || after.etag === before.etag || after.updated === before.updated) throw new Error(`Calendar no confirmó una nueva versión para ${orbitEventId}.`);
+  const snapshot = {
+    id: after.id, calendarId: expectedCalendarId, etag: after.etag, updated: after.updated,
+    status: after.status, summary: after.summary ?? "", description: after.description ?? "",
+    location: after.location ?? "", start: after.start, end: after.end,
+    sourceHash, remoteHash: verified.remoteHash,
+  };
+  const { data: result, error: rpcError } = await client.rpc("apply_canonical_calendar_event_update", {
+    p_sync_id: row.id, p_orbit_event_id: orbitEventId, p_expected_updated_at: row.updated_at,
+    p_expected_current_hash: row.current_payload_hash, p_source_hash: sourceHash,
+    p_remote_hash: verified.remoteHash, p_remote_etag: after.etag, p_remote_updated_at: after.updated,
+    p_remote_snapshot: snapshot, p_event_revision: row.current_event_revision ?? 0, p_actor_id: actorId,
+  });
+  if (rpcError) throw rpcError;
+  return { result: result as string, orbitEventId, googleEventId: eventId, googleEventUrl: remoteUrl ?? reference.googleEventUrl, beforeEtag: before.etag, etag: after.etag, sourceHash, remoteHash: verified.remoteHash, start: verified.start, end: verified.end };
 }
 
