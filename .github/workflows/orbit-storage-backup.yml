@@ -105,8 +105,9 @@ jobs:
 
       - name: Upload encrypted Storage backup to Drive and verify SHA-256
         run: |
-          npm install --no-save --no-package-lock googleapis@144.0.0
-          node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-storage-backup"
+          mkdir -p "$RUNNER_TEMP/orbit-drive-client"
+          npm --prefix "$RUNNER_TEMP/orbit-drive-client" install --no-save --no-package-lock --ignore-scripts googleapis@144.0.0
+          NODE_PATH="$RUNNER_TEMP/orbit-drive-client/node_modules" node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-storage-backup"
 
       - name: Cleanup temporary Storage material
         if: always()
