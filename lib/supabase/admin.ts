@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { assertSupabaseEnvironmentSafe, isReadOnlyVisualPreview } from "./environment-guard";
 import { makeReadOnlyVisualPreviewClient } from "./read-only-preview";
+import { fetchWithSupabasePoolRetry } from "./fetch-with-retry";
 
 /** Server-only Supabase client for trusted background and connector operations. */
 export function createAdminClient(): SupabaseClient {
@@ -17,6 +18,7 @@ export function createAdminClient(): SupabaseClient {
       autoRefreshToken: false,
       persistSession: false,
     },
+    global: { fetch: fetchWithSupabasePoolRetry },
   });
   return isReadOnlyVisualPreview() ? makeReadOnlyVisualPreviewClient(client) : client;
 }
