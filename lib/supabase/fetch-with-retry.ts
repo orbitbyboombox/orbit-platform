@@ -17,10 +17,13 @@ async function acquireSlot(): Promise<() => void> {
 export async function fetchWithSupabasePoolRetry(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   for (let attempt = 0; ; attempt += 1) {
     const release = await acquireSlot();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 4_000);
     let response: Response;
     try {
-      response = await fetch(input, init);
+      response = await fetch(input, { ...init, signal: controller.signal });
     } finally {
+      clearTimeout(timeout);
       release();
     }
     if (attempt >= 2 || response.ok) return response;
