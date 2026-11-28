@@ -56,8 +56,11 @@ function eventDetail(project: {
 }
 export async function loadAccountsReceivable(
   client: SupabaseClient,
+  options: { refreshNotifications?: boolean } = {},
 ): Promise<ReceivableDataset> {
-  if (!isReadOnlyVisualPreview()) await client.rpc("refresh_receivable_notifications");
+  if (options.refreshNotifications !== false && !isReadOnlyVisualPreview()) {
+    await client.rpc("refresh_receivable_notifications");
+  }
   const [
     invoicesResult,
     historyResult,
@@ -106,7 +109,7 @@ export async function loadAccountsReceivable(
       .order("created_at", { ascending: false }),
     client.from("invoice_payments").select("id,invoice_id,amount,paid_at,method,reason,created_at").is("deleted_at",null).gt("amount",0).order("paid_at",{ascending:false}),
     client.from("profiles").select("id,display_name"),
-    client.from("communications").select("id,project_id,communication_type,channel,subject,status,occurred_at").in("communication_type",["PAYMENT_REMINDER","COLLECTION_EMAIL","COLLECTION_WHATSAPP_OPENED","COLLECTION_EMAIL_OPENED","COLLECTION_PHONE_OPENED"]).order("occurred_at",{ascending:false}),
+    client.from("communications").select("id,project_id,communication_type,channel,subject,status,occurred_at,sent_at,to_recipient,created_by,sent_by,failure_reason").in("communication_type",["PAYMENT_REMINDER","COLLECTION_EMAIL","COLLECTION_WHATSAPP_OPENED","COLLECTION_EMAIL_OPENED","COLLECTION_PHONE_OPENED"]).order("occurred_at",{ascending:false}),
     client.from("financial_event_records").select("project_id,payment_schedule"),
   ]);
   const failure = [

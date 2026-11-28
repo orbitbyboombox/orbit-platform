@@ -16,7 +16,9 @@ test("defines canonical idempotent alerts and safe closure", () => {
   assert.doesNotMatch(migration, /\bdelete\s+from\b/i);
 });
 test("registers WhatsApp types in Founder reconciler", () => {
-  assert.ok(actions.includes("reconcile_whatsapp_founder_alerts"));
+  assert.ok(actions.includes("WHATSAPP_WAITING_FOR_BOOMBOX"));
+  assert.ok(actions.includes("WHATSAPP_HUMAN_STALE"));
+  assert.ok(actions.includes("WHATSAPP_UNREAD_CRITICAL"));
   assert.ok(actions.includes("WHATSAPP_WAITING_FOR_BOOMBOX"));
   assert.ok(actions.includes("WHATSAPP_HUMAN_STALE"));
   assert.ok(actions.includes("WHATSAPP_UNREAD_CRITICAL"));

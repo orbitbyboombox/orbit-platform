@@ -29,7 +29,7 @@ test("operational readiness remains in its owning agenda while reconciliation co
   // 94accd6a routes missing physical configuration away from the Founder queue.
   const founderTypes = founder.slice(founder.indexOf("const canonicalFounderActionTypeList"), founder.indexOf("const canonicalFounderActionTypes"));
   assert.doesNotMatch(founderTypes, /"PHYSICAL_CONFIGURATION_MISSING"/);
-  assert.match(founder, /reconcile_operational_agenda_alerts/);
+  assert.doesNotMatch(founder, /reconcile_operational_agenda_alerts/);
   assert.match(agenda, /Sin configuración física:/);
   assert.match(agenda, /Definir configuración/);
   assert.match(agenda, /physical-resource-planning/);

@@ -5,6 +5,17 @@ export function actualPaidAmount(recordedPaidAmount: number, payments: readonly 
   return Math.max(0, payments.reduce((total, payment) => total + (Number(payment.amount) || 0), 0));
 }
 
+export function invoicePaymentCashImpact(
+  movementType: string | null | undefined,
+  value: number | string | null,
+): number {
+  const type = (movementType?.trim() || "PARTIAL_PAYMENT").toUpperCase();
+  const amount = Number(value ?? 0) || 0;
+  if (["DEPOSIT", "PARTIAL_PAYMENT", "FULL_PAYMENT"].includes(type)) return amount;
+  if (type === "RETURN_COMPLETED") return -Math.abs(amount);
+  return 0;
+}
+
 export function scheduleDueDate(schedule: unknown, fallback: string | null): string | null {
   const rows = Array.isArray(schedule) ? schedule : schedule && typeof schedule === "object" ? [schedule] : [];
   const dueDate = rows
