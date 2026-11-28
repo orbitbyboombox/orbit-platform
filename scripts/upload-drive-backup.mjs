@@ -1,9 +1,12 @@
-import { google } from "googleapis";
 import { createReadStream } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { assertReadback } from "./backup-integrity.mjs";
+import { createRequire } from "node:module";
+
+const require = createRequire(import.meta.url);
+const { google } = require("googleapis");
 
 const [, , directory] = process.argv;
 const parentId = process.env.GOOGLE_DRIVE_PARENT_FOLDER_ID;
