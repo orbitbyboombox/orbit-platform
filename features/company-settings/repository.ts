@@ -1,4 +1,4 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { unstable_cache } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { DEFAULT_COMPANY_SETTINGS, type CompanySettings } from "./types";
@@ -27,5 +27,25 @@ export const loadCompanySettingsCached = unstable_cache(
 export async function loadCompanySettingsForLayout(): Promise<CompanySettings> {
   const adminKey = process.env.SUPABASE_SECRET_KEY?.trim() || process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
   if (!adminKey) return DEFAULT_COMPANY_SETTINGS;
-  return loadCompanySettingsCached();
+  const url = process.env.SUPABASE_URL?.trim();
+  if (!url) return DEFAULT_COMPANY_SETTINGS;
+  const client = createClient(url, adminKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+    global: {
+      fetch: async (input, init) => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 3_000);
+        try {
+          return await fetch(input, { ...init, signal: controller.signal });
+        } finally {
+          clearTimeout(timeout);
+        }
+      },
+    },
+  });
+  try {
+    return await loadCompanySettings(client);
+  } catch {
+    return DEFAULT_COMPANY_SETTINGS;
+  }
 }
