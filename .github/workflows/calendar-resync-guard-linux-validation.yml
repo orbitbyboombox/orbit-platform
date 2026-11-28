@@ -68,7 +68,10 @@ jobs:
             raise exception 'invalid lease duration was accepted';
           exception when sqlstate '22023' then null;
           end $$;
-          if (select count(*) from public.calendar_resync_leases) <> 0 then raise exception 'invalid request left a lease'; end if;
+          do $$
+          begin
+            if (select count(*) from public.calendar_resync_leases) <> 0 then raise exception 'invalid request left a lease'; end if;
+          end $$;
           SQL
           printf "select public.claim_calendar_resync_lease('google-calendar-resync','00000000-0000-0000-0000-000000000001',300);\n" | psql -h 127.0.0.1 -U postgres -d calendar_guard_test -At > /tmp/lease-a.out &
           printf "select public.claim_calendar_resync_lease('google-calendar-resync','00000000-0000-0000-0000-000000000002',300);\n" | psql -h 127.0.0.1 -U postgres -d calendar_guard_test -At > /tmp/lease-b.out &
