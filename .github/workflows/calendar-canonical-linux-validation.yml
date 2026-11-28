@@ -1,6 +1,9 @@
 name: Calendar canonical update Linux validation
 
 on:
+  push:
+    branches:
+      - fix/calendar-resync-guard-v218
   pull_request:
     branches:
       - release/finance-staff-v217-20261115
