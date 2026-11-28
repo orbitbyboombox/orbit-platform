@@ -4,7 +4,7 @@ import { synchronizeConfirmedReservationCalendar } from "./google-calendar-sync.
 import { hashCanonicalCalendarFingerprint } from "./canonical-calendar-fingerprint";
 import { buildCanonicalOrbitEventStateFromRecord } from "@/features/operations/canonical-orbit-event-state";
 
-type QueueRow = { id: string; project_id: string; orbit_event_id: string; status: string; next_retry_at: string | null; sync_started_at: string | null; external_event_id: string | null; nova_external_event_id: string | null };
+type QueueRow = { id: string; project_id: string; orbit_event_id: string; status: string; retry_count: number; next_retry_at: string | null; sync_started_at: string | null; external_event_id: string | null; nova_external_event_id: string | null };
 
 /** Marks a persisted mapping stale after a canonical operational edit. */
 export async function invalidateCalendarSyncForCanonicalChange(input: { client: SupabaseClient; projectId: string; currentPayloadHash: string }): Promise<void> {
@@ -40,7 +40,7 @@ export async function invalidateCalendarSyncForProject(client: SupabaseClient, p
 export async function syncStaleGoogleCalendarEvents(input: { client: SupabaseClient; actorId: string; batchSize?: number }): Promise<{ claimed: number; synchronized: number; failed: number; skipped: number }> {
   const batchSize = Math.max(1, Math.min(input.batchSize ?? 25, 100));
   const now = new Date().toISOString();
-  const fields = "id,project_id,orbit_event_id,status,next_retry_at,sync_started_at,external_event_id,nova_external_event_id";
+  const fields = "id,project_id,orbit_event_id,status,retry_count,next_retry_at,sync_started_at,external_event_id,nova_external_event_id";
   const { data: actionable, error: actionableError } = await input.client.from("calendar_sync").select(fields).in("status", ["PENDING", "STALE", "FAILED"]).or(`next_retry_at.is.null,next_retry_at.lte.${now}`).order("updated_at", { ascending: false }).limit(batchSize);
   if (actionableError) throw actionableError;
   const remaining = Math.max(0, batchSize - (actionable?.length ?? 0));
@@ -72,8 +72,11 @@ export async function syncStaleGoogleCalendarEvents(input: { client: SupabaseCli
       summary.synchronized++;
     } catch (err) {
       const message = err instanceof Error ? err.message.slice(0, 500) : "Calendar resync failed";
-      const retryCount = 1;
-      await input.client.from("calendar_sync").update({ status: "FAILED", retry_count: retryCount, next_retry_at: new Date(Date.now() + 60_000).toISOString(), sync_started_at: null, last_error: { message }, last_error_code: "RESYNC_FAILED" }).eq("id", row.id);
+      const nextRetryCount = Math.min(5, Math.max(0, Number(row.retry_count ?? 0)) + 1);
+      const isConflict = message.startsWith("CALENDAR_REMOTE_VERIFY_FAILED") || message.includes("CALENDAR_MAPPING_MISSING");
+      const isolated = isConflict || nextRetryCount >= 5;
+      const retryDelaySeconds = Math.min(900, 30 * (2 ** (nextRetryCount - 1)));
+      await input.client.from("calendar_sync").update({ status: isolated ? "ERROR" : "FAILED", retry_count: nextRetryCount, next_retry_at: isolated ? null : new Date(Date.now() + retryDelaySeconds * 1000).toISOString(), sync_started_at: null, last_error: { message }, last_error_code: isolated ? "RESYNC_REVIEW_REQUIRED" : "RESYNC_FAILED" }).eq("id", row.id);
       summary.failed++;
     }
   }
