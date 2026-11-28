@@ -46,8 +46,8 @@ export async function sendApprovedAccountantPackage(form: FormData) {
     const delivered = await new GoogleGmailApiProvider(token).send({
       to: state.recipient,
       subject: `BOOMBOX® · Cierre contable ${period}`,
-      textBody: `BOOMBOX® · Cierre contable ${period}\n\n${packaged.summary}`,
-      htmlBody: `<div style="font:15px Arial;color:#171717"><h1 style="background:#171717;color:#fff;padding:20px">BOOMBOX®</h1><h2 style="color:#985007">Cierre contable ${period}</h2><p style="white-space:pre-line">${escaped}</p></div>`,
+      textBody: `BOOMBOX® · Cierre contable ${period}\n\n${packaged.summary}\n\nwww.bbox.cl · contacto@bbox.cl`,
+      htmlBody: `<div style="font:15px Arial;color:#171717"><h1 style="background:#171717;color:#fff;padding:20px">BOOMBOX®</h1><h2 style="color:#985007">Cierre contable ${period}</h2><p style="white-space:pre-line">${escaped}</p><p><a href="https://www.bbox.cl">www.bbox.cl</a> · <a href="mailto:contacto@bbox.cl">contacto@bbox.cl</a></p></div>`,
       attachments: packaged.attachments, driveFileIds: [], maxSendAttempts: 1,
       idempotencyKey: `accountant-delivery-${period}`,
     });

@@ -49,7 +49,10 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
     .order("created_at", { ascending: false })
     .limit(100) : { data: [] };
 
-  const { data: drafts } = activeModule === "documents" ? await client.from("tributary_simulations").select("id,invoice_number,status,amount,tributary_document_type,project_id,updated_at,approved_at,tributary_snapshot").eq("record_origin", "PRE_SII").is("deleted_at", null).order("updated_at", { ascending: false }).limit(100) : { data: [] };
+  const draftQuery = client.from("tributary_simulations").select("id,invoice_number,status,amount,tributary_document_type,project_id,updated_at,approved_at,tributary_snapshot").eq("record_origin", "PRE_SII").is("deleted_at", null);
+  const { data: drafts } = activeModule === "documents"
+    ? await (projectId ? draftQuery.eq("project_id", projectId) : draftQuery).order("updated_at", { ascending: false }).limit(100)
+    : { data: [] };
   const { data: ledger } = activeModule === "reconciliation" ? await client.from("tributary_internal_ledger").select("source_type,document_type,reference,occurred_on,net_amount,exempt_amount,vat_amount,total_amount,payment_status,record_origin").gte("occurred_on", start).lt("occurred_on", end).order("occurred_on", { ascending: false }).limit(100) : { data: [] };
   const rows = documents ?? [];
   return (
@@ -88,7 +91,7 @@ export default async function TributaryCenterPage({ searchParams }: { searchPara
       </form>
       </>}
       {activeModule === "documents" && <>
-      <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} />
+      <TributaryDraftManager drafts={(drafts ?? []) as any} projectId={projectId} customerId={customerId} initialType={prepare === "boletas" ? "39" : "33"} />
 
 
       {prepare ? (() => {

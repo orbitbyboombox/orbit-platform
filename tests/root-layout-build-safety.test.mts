@@ -17,5 +17,9 @@ test("public root layout uses the build-safe settings loader", () => {
 test("layout fallback never substitutes an administrative credential", () => {
   assert.match(repository, /if\s*\(!adminKey\)\s*return DEFAULT_COMPANY_SETTINGS/);
   assert.match(repository, /SUPABASE_SERVICE_ROLE_KEY/);
-  assert.match(repository, /return loadCompanySettingsCached\(\)/);
+  const loader = repository.slice(repository.indexOf("export async function loadCompanySettingsForLayout"));
+  assert.doesNotMatch(loader, /NEXT_PUBLIC_|loadCompanySettingsCached\(|createAdminClient\(/);
+  assert.match(loader, /createClient\(url, adminKey/);
+  assert.match(loader, /setTimeout\(\(\) => controller\.abort\(\), 3_000\)/);
+  assert.match(loader, /catch \{\s*return DEFAULT_COMPANY_SETTINGS/);
 });

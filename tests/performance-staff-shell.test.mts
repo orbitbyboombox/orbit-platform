@@ -13,7 +13,7 @@ test("staff audit history query is indexed and the platform shell does not recon
   assert.match(migration, /where entity_type = 'staff'/i);
   assert.doesNotMatch(layout, /synchronizeModuleCatalog\(client,user\.id\)/);
   assert.doesNotMatch(layout, /reconcileFounderActionSources|reconcile_founder_action_alerts/);
-  assert.match(actionCenter, /after\(async \(\) => \{[\s\S]*await reconcileFounderActionSources\(\)/);
-  assert.match(actionCenter, /unstable_cache[\s\S]*revalidate: 30/);
+  assert.doesNotMatch(actionCenter, /reconcileFounderActionSources|reconcile_founder_action_alerts/);
+  assert.match(actionCenter, /const loadFounderActionCenterCached = cache\(/);
   assert.match(actionCenter, /loadFounderActionCount\(userId: string\)[\s\S]*return \(await loadFounderActionCenter\(userId\)\)\.count/);
 });

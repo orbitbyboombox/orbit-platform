@@ -902,7 +902,11 @@ export function ProjectWorkspaceExperience(
                 <div className="mt-3 flex flex-wrap gap-3">
                   <Link className="inline-flex min-h-11 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-brand-foreground"
                     href={`/finance/tributary?prepare=facturas&project=${encodeURIComponent(props.projectKey)}`}>
-                    Preparar documento
+                    Facturar evento
+                  </Link>
+                  <Link className="inline-flex min-h-11 items-center rounded-xl border px-4 text-sm font-semibold"
+                    href={`/finance/tributary?prepare=boletas&project=${encodeURIComponent(props.projectKey)}`}>
+                    Preparar boleta electrónica
                   </Link>
                   {moduleVisible("DOCUMENTS") && (
                     <button className="min-h-11 rounded-xl border px-4 text-sm font-semibold" type="button" onClick={() => selectTab("DOCUMENTS")}>Ver documentos y respaldos</button>
