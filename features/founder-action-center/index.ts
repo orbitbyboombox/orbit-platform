@@ -229,6 +229,33 @@ export async function loadFounderActionCenter(userId: string) {
   return loadFounderActionCenterCached(userId);
 }
 
+const loadFounderActionBadgeCountCached = cache(async (userId: string) => {
+  const admin = createAdminClient();
+  const [notificationsResult, reviewedResult, overdueResult] = await Promise.all([
+    admin
+      .from("internal_notifications")
+      .select("id")
+      .eq("action_required", true)
+      .neq("status", "RESOLVED")
+      .in("notification_type", [...canonicalFounderActionTypeList])
+      .limit(1000),
+    admin.from("founder_action_user_states").select("action_key").eq("user_id", userId),
+    admin
+      .from("accounts_receivable_projection")
+      .select("id")
+      .gt("outstanding_balance", 0)
+      .lt("days_remaining", 0)
+      .not("effective_status", "in", "(PAID,CANCELLED,ARCHIVED)")
+      .limit(100),
+  ]);
+  const error = notificationsResult.error ?? reviewedResult.error ?? overdueResult.error;
+  if (error) throw error;
+  const reviewed = new Set((reviewedResult.data ?? []).map((row) => row.action_key));
+  const notificationCount = (notificationsResult.data ?? []).filter((row) => !reviewed.has(row.id)).length;
+  const overdueCount = (overdueResult.data ?? []).filter((row) => !reviewed.has(`founder-action:invoice:${row.id}`)).length;
+  return notificationCount + overdueCount;
+});
+
 export async function loadFounderActionCount(userId: string) {
-  return (await loadFounderActionCenter(userId)).count;
+  return loadFounderActionBadgeCountCached(userId);
 }

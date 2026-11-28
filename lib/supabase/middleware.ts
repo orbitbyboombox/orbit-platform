@@ -1,6 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import { isInvalidSessionError, isMissingSessionError } from "./auth-errors";
+import { isInvalidSessionError, isMissingSessionError, isTransientSupabaseTransportError } from "./auth-errors";
 import { isAdministrativeRole, isMetaReviewerRole, unauthorizedLandingForRole } from "@/lib/auth/roles";
 import { fetchWithSupabasePoolRetry } from "./fetch-with-retry";
 
@@ -18,9 +18,10 @@ export async function updateSession(request: NextRequest) {
     const result = await supabase.auth.getUser();
     user = result.data.user;
     error = result.error;
-  } catch {
+  } catch (error) {
+    if (isTransientSupabaseTransportError(error)) return response;
     if (isPublicEntry) return response;
-    return NextResponse.redirect(new URL("/login", request.url));
+    return response;
   }
   if(error){if(isMissingSessionError(error)){if(isPublicEntry)return response;const login=new URL("/login",request.url);login.searchParams.set("next",request.nextUrl.pathname+request.nextUrl.search);return NextResponse.redirect(login)}if(isInvalidSessionError(error))return NextResponse.redirect(new URL("/api/auth/session-expired",request.url));return response}
   if (!user){if(isPublicEntry)return response;const login=new URL("/login",request.url);login.searchParams.set("next",request.nextUrl.pathname+request.nextUrl.search);return NextResponse.redirect(login)}

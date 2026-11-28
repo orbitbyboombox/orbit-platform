@@ -76,5 +76,5 @@ test('mobile cards wrap complete details, expose all records and use server-vali
   const panel=source('features/founder-action-center/diagnostic-panel.tsx'),workspace=source('features/founder-workspace/founder-workspace-experience.tsx'),loader=source('features/founder-action-center/index.ts');
   assert.match(panel,/whitespace-pre-wrap/);assert.match(panel,/overflow-wrap:anywhere/);assert.match(panel,/min-h-11/);assert.match(panel,/aria-expanded/);assert.match(panel,/validateFounderActions/);
   assert.match(workspace,/Ver más pendientes/);assert.doesNotMatch(workspace,/LISTO GRUPO|dismissFounderActionsAction/);
-  assert.match(loader,/return \(await loadFounderActionCenter\(userId\)\)\.count/);assert.doesNotMatch(loader,/dismissed\.has/);assert.match(loader,/range\(offset, offset \+ 499\)/);
+  assert.match(loader,/const loadFounderActionBadgeCountCached = cache\(/);assert.match(loader,/return loadFounderActionBadgeCountCached\(userId\)/);assert.doesNotMatch(loader,/dismissed\.has/);assert.match(loader,/range\(offset, offset \+ 499\)/);
 });
