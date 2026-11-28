@@ -27,12 +27,24 @@ export class GoogleCalendarPreconditionFailed extends Error {
 }
 
 export class GoogleCalendarApiProvider implements GoogleCalendarLiveProvider {
+  private static readonly requestTimeoutMs = 15_000;
   private readonly accessToken: string;
   readonly calendarId: string;
   constructor(accessToken: string, calendarId = "primary") { this.accessToken = accessToken; this.calendarId = calendarId; }
   private endpoint(eventId?: string) { const base = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(this.calendarId)}/events`; return eventId ? `${base}/${encodeURIComponent(eventId)}` : base; }
   private body(payload: GoogleCalendarEventPayload) { return { summary: payload.title, description: payload.description, location: payload.location, colorId: payload.color.googleColorId, start: { dateTime: `${payload.date}T${payload.startTime}:00`, timeZone: "America/Santiago" }, end: { dateTime: `${payload.endDate}T${payload.endTime}:00`, timeZone: "America/Santiago" }, extendedProperties: { private: { orbitEventId: payload.orbitEventId } } }; }
-  private async request(url: string, init: RequestInit): Promise<GoogleCalendarRemoteEvent> { const response = await fetch(url, { ...init, headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json", ...init.headers } }); if (response.status === 412) throw new GoogleCalendarPreconditionFailed(); if (!response.ok) throw new Error(`Google Calendar request failed (${response.status}): ${await response.text()}`); return response.json() as Promise<GoogleCalendarRemoteEvent>; }
+  private async request(url: string, init: RequestInit): Promise<GoogleCalendarRemoteEvent> {
+    let response: Response;
+    try {
+      response = await fetch(url, { ...init, signal: AbortSignal.timeout(GoogleCalendarApiProvider.requestTimeoutMs), headers: { Authorization: `Bearer ${this.accessToken}`, "Content-Type": "application/json", ...init.headers } });
+    } catch (error) {
+      if (error instanceof Error && error.name === "TimeoutError") throw new Error("Google Calendar no respondió dentro de 15 segundos; no se persistió ningún cambio.");
+      throw error;
+    }
+    if (response.status === 412) throw new GoogleCalendarPreconditionFailed();
+    if (!response.ok) throw new Error(`Google Calendar request failed (${response.status}): ${await response.text()}`);
+    return response.json() as Promise<GoogleCalendarRemoteEvent>;
+  }
   private reference(event: GoogleCalendarRemoteEvent) { return { googleEventId: event.id, googleEventUrl: event.htmlLink, updatedAt: event.updated }; }
   async getEvent(id: string) { return this.request(this.endpoint(id), { method: "GET" }); }
   async findEventsByOrbitEventId(orbitEventId: string) {
@@ -43,7 +55,7 @@ export class GoogleCalendarApiProvider implements GoogleCalendarLiveProvider {
       url.searchParams.set("q", orbitEventId);
       url.searchParams.set("maxResults", "2500");
       if (pageToken) url.searchParams.set("pageToken", pageToken);
-      const response = await fetch(url, { headers: { Authorization: `Bearer ${this.accessToken}` } });
+      const response = await fetch(url, { signal: AbortSignal.timeout(GoogleCalendarApiProvider.requestTimeoutMs), headers: { Authorization: `Bearer ${this.accessToken}` } });
       if (!response.ok) throw new Error(`Google Calendar duplicate check failed (${response.status}): ${await response.text()}`);
       const body = await response.json() as { items?: GoogleCalendarRemoteEvent[]; nextPageToken?: string };
       matches.push(...(body.items ?? []).filter((event) => event.status !== "cancelled" && (event.extendedProperties?.private?.orbitEventId === orbitEventId || event.description?.split("\n").some((line) => line.trim() === `ORBIT Event ID: ${orbitEventId}`))));
