@@ -36,11 +36,19 @@ function config() {
 async function request(path: string, init: RequestInit = {}) {
   const value = config();
   if (!value.organizationId || !value.clientSlug || !value.clientToken) throw new Error("NOVA Google Core no está configurado.");
-  return fetch(`${value.baseUrl}${path}`, {
-    ...init,
-    headers: { "x-orbit-client-token": value.clientToken, ...init.headers },
-    cache: "no-store",
-  });
+  try {
+    return await fetch(`${value.baseUrl}${path}`, {
+      ...init,
+      signal: init.signal ?? AbortSignal.timeout(15_000),
+      headers: { "x-orbit-client-token": value.clientToken, ...init.headers },
+      cache: "no-store",
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      throw new Error("NOVA Google Core no respondió dentro de 15 segundos; no se modificó Calendar.");
+    }
+    throw error;
+  }
 }
 
 export async function loadNOVAGoogleHealth(): Promise<NOVAGoogleHealth> {

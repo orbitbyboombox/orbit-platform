@@ -55,7 +55,13 @@ export class GoogleCalendarApiProvider implements GoogleCalendarLiveProvider {
       url.searchParams.set("q", orbitEventId);
       url.searchParams.set("maxResults", "2500");
       if (pageToken) url.searchParams.set("pageToken", pageToken);
-      const response = await fetch(url, { signal: AbortSignal.timeout(GoogleCalendarApiProvider.requestTimeoutMs), headers: { Authorization: `Bearer ${this.accessToken}` } });
+      let response: Response;
+      try {
+        response = await fetch(url, { signal: AbortSignal.timeout(GoogleCalendarApiProvider.requestTimeoutMs), headers: { Authorization: `Bearer ${this.accessToken}` } });
+      } catch (error) {
+        if (error instanceof Error && error.name === "TimeoutError") throw new Error("Google Calendar no respondió dentro de 15 segundos; no se persistió ningún cambio.");
+        throw error;
+      }
       if (!response.ok) throw new Error(`Google Calendar duplicate check failed (${response.status}): ${await response.text()}`);
       const body = await response.json() as { items?: GoogleCalendarRemoteEvent[]; nextPageToken?: string };
       matches.push(...(body.items ?? []).filter((event) => event.status !== "cancelled" && (event.extendedProperties?.private?.orbitEventId === orbitEventId || event.description?.split("\n").some((line) => line.trim() === `ORBIT Event ID: ${orbitEventId}`))));
