@@ -20,7 +20,7 @@ import {
   loadCompanySettings,
 } from "@/features/company-settings";
 import Link from "next/link";
-import { Activity, ArrowRight, Files, PenTool, RadioTower } from "lucide-react";
+import { HardDrive, Activity, ArrowRight, Files, PenTool, RadioTower } from "lucide-react";
 import { ModuleManagerCenter } from "@/features/module-manager";
 import { loadModuleStates } from "@/features/module-manager/repository";
 import { ProfitabilitySettings } from "@/features/settings/profitability-settings";
@@ -62,6 +62,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     modules,
     founderWorkspace,
     banking,
+    { data: backupProfile },
     { data: profitabilitySettings },
     { data: integrity },
     { data: diagnostics, error: diagnosticsError },
@@ -76,6 +77,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     loadModuleStates(client),
     loadFounderWorkspace(client, auth.user.id),
     loadBankingReadModel(client),
+    client.from("profiles").select("role").eq("id", auth.user.id).maybeSingle(),
     client
       .from("profitability_settings")
       .select("high_margin_threshold,normal_margin_threshold")
@@ -182,6 +184,11 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         />
       )}
       {signatureOpen && <EmailSignatureSettings url={typeof companySettings.emailConfiguration.signatureGifUrl === "string" ? companySettings.emailConfiguration.signatureGifUrl : ""} />}
+      {!commercialOpen && !signatureOpen && ["CEO", "ADMINISTRATOR"].includes(backupProfile?.role ?? "") && (
+        <Link href="/settings/backups" className="flex items-center gap-3 rounded-2xl border bg-card p-5 font-semibold hover:border-brand/40">
+          <HardDrive className="size-5 text-brand" aria-hidden="true" /> Centro de Respaldos Premium
+        </Link>
+      )}
       {!commercialOpen && !signatureOpen && <PersonalWorkspaceSections
       moduleKey="SETTINGS"
       collapsible

@@ -1,15 +1,23 @@
 name: ORBIT Supabase backup
 
 on:
+  schedule:
+    - cron: "0 3 * * *"
+      timezone: America/Santiago
   workflow_dispatch:
     inputs:
       confirmation:
         description: "Type BACKUP-ORBIT-2.1 to confirm a production read-only backup"
         required: true
         type: string
+      backup_run_id:
+        description: "Internal audit id created by the admin panel"
+        required: false
+        type: string
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: orbit-supabase-backup-production
@@ -17,17 +25,32 @@ concurrency:
 
 jobs:
   backup:
-    if: ${{ inputs.confirmation == 'BACKUP-ORBIT-2.1' }}
+    if: ${{ (github.event_name == 'schedule' && vars.ORBIT_BACKUP_AUTOMATION_ENABLED == 'true') || inputs.confirmation == 'BACKUP-ORBIT-2.1' }}
     runs-on: ubuntu-24.04
     environment: orbit-backup-production
     timeout-minutes: 120
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: orbit-restore-only
+          POSTGRES_DB: orbit_restore
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d orbit_restore"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
     env:
-      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
       SUPABASE_URL: ${{ vars.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
-      GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
+      GOOGLE_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+      GOOGLE_SERVICE_ACCOUNT: ${{ vars.GOOGLE_SERVICE_ACCOUNT }}
+      BACKUP_KIND: full
       GOOGLE_DRIVE_PARENT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_PARENT_FOLDER_ID }}
+      BACKUP_RUN_ID: ${{ inputs.backup_run_id }}
 
     steps:
       - name: Checkout exact backup source
@@ -41,13 +64,14 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: 2.121.0
+      - name: Prepare PostgreSQL 17 client
+        run: docker pull postgres:17
 
       - name: Install application dependencies
         run: corepack enable && pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Register backup run
+        run: node scripts/orbit-backup-run.mjs start "${BACKUP_RUN_ID:-}"
 
       - name: Prepare temporary workspace
         shell: bash
@@ -55,21 +79,25 @@ jobs:
           set -euo pipefail
           umask 077
           mkdir -p "$RUNNER_TEMP/orbit-backup/storage"
-          test -n "$SUPABASE_DB_URL"
           test -n "$SUPABASE_URL"
           test -n "$SUPABASE_SERVICE_ROLE_KEY"
           test -n "$BACKUP_ENCRYPTION_PASSPHRASE"
-          test -n "$GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON"
-          test -n "$GOOGLE_DRIVE_PARENT_FOLDER_ID"
+          test -n "$GOOGLE_WORKLOAD_IDENTITY_PROVIDER"
+          test -n "$GOOGLE_SERVICE_ACCOUNT"
+          test "$GOOGLE_DRIVE_PARENT_FOLDER_ID" = "0AGRNujUa7zHEUk9PVA"
+
+      - name: Prepare Supabase session pooler connection
+        env:
+          SOURCE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: node scripts/orbit-session-pooler.mjs
 
       - name: Export database schema and data
         shell: bash
         run: |
           set -euo pipefail
-          supabase db dump --db-url "$SUPABASE_DB_URL" --schema public,storage,auth \
-            --file "$RUNNER_TEMP/orbit-backup/database-schema.sql"
-          supabase db dump --db-url "$SUPABASE_DB_URL" --schema public,storage,auth \
-            --data-only --file "$RUNNER_TEMP/orbit-backup/database-data.sql"
+          docker run --rm --network host -v "$RUNNER_TEMP/orbit-backup:/backup" -e PGHOST -e PGPORT -e PGUSER -e PGDATABASE -e PGPASSWORD -e PGSSLMODE -e PGCONNECT_TIMEOUT postgres:17 sh -c 'pg_dump --no-owner --no-acl --schema=public --schema=auth --schema=storage --format=plain --file=/backup/database-schema.sql'
+          docker run --rm --network host -v "$RUNNER_TEMP/orbit-backup:/backup" -e PGHOST -e PGPORT -e PGUSER -e PGDATABASE -e PGPASSWORD -e PGSSLMODE -e PGCONNECT_TIMEOUT postgres:17 sh -c 'pg_dump --no-owner --no-acl --data-only --schema=public --schema=auth --schema=storage --format=plain --file=/backup/database-data.sql'
+          git archive --format=tar "$GITHUB_SHA" | gzip -9 > "$RUNNER_TEMP/orbit-backup/source-code.tar.gz"
 
       - name: Export Storage objects and checksums
         run: |
@@ -84,7 +112,7 @@ jobs:
           umask 077
           work="$RUNNER_TEMP/orbit-backup"
           tar -czf "$work/storage.tar.gz" -C "$work/storage" .
-          for source in database-schema.sql database-data.sql storage.tar.gz storage-manifest.json; do
+          for source in database-schema.sql database-data.sql storage.tar.gz storage-manifest.json source-code.tar.gz; do
             printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -aes-256-cbc -pbkdf2 -iter 600000 -salt \
               -pass stdin -in "$work/$source" -out "$work/$source.enc"
           done
@@ -98,14 +126,70 @@ jobs:
             -pass stdin -in "$work/sha256sums.txt" -out "$work/sha256sums.txt.enc"
           rm -f "$work/sha256sums.txt"
 
+      - name: Authenticate to Google Drive using GitHub OIDC
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GOOGLE_SERVICE_ACCOUNT }}
+          create_credentials_file: true
+          export_environment_variables: true
+
       - name: Upload encrypted backup to restricted Drive folder
         run: |
-          npm install --no-save --no-package-lock googleapis@144.0.0
-          node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-backup"
+          mkdir -p "$RUNNER_TEMP/orbit-drive-deps"
+          npm install --prefix "$RUNNER_TEMP/orbit-drive-deps" --no-package-lock googleapis@144.0.0
+          ln -s "$RUNNER_TEMP/orbit-drive-deps/node_modules/googleapis" node_modules/googleapis
+          node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-backup" > "$RUNNER_TEMP/orbit-backup/drive-upload-result.json"
+
+      - name: Record completed upload
+        env:
+          BACKUP_RESULT_FILE: ${{ runner.temp }}/orbit-backup/drive-upload-result.json
+        run: node scripts/orbit-backup-run.mjs complete
+
+      - name: Download exact uploaded folder for isolated recovery
+        run: |
+          set -euo pipefail
+          export ORBIT_RESTORE_FOLDER_ID="$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).folderId' "$RUNNER_TEMP/orbit-backup/drive-upload-result.json")"
+          node scripts/download-latest-drive-backup.mjs "$RUNNER_TEMP/orbit-restore"
+
+      - name: Verify Drive readback, hashes, source, and Storage contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          work="$RUNNER_TEMP/orbit-restore"
+          umask 077
+          for source in database-schema.sql database-data.sql storage.tar.gz storage-manifest.json source-code.tar.gz backup-manifest.json sha256sums.txt; do
+            printf '%s' "$BACKUP_ENCRYPTION_PASSPHRASE" | openssl enc -d -aes-256-cbc -pbkdf2 -iter 600000 -pass stdin -in "$work/$source.enc" -out "$work/$source"
+          done
+          node scripts/normalize-orbit-backup-checksums.mjs "$work/sha256sums.txt" > "$work/sha256sums.local.txt"
+          (cd "$work" && sha256sum --strict -c sha256sums.local.txt)
+          tar -tzf "$work/source-code.tar.gz" >/dev/null
+          mkdir -p "$work/restored-storage"
+          tar -xzf "$work/storage.tar.gz" -C "$work/restored-storage"
+          node scripts/validate-storage-restore.mjs "$work/storage-manifest.json" "$work/restored-storage"
+
+      - name: Restore PostgreSQL and Auth into isolated PostgreSQL 17 service
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker run --rm --network host -e PGPASSWORD=orbit-restore-only postgres:17 sh -c 'psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -c "CREATE ROLE anon NOLOGIN; CREATE ROLE authenticated NOLOGIN; CREATE ROLE service_role NOLOGIN; CREATE ROLE supabase_auth_admin NOLOGIN; CREATE ROLE supabase_storage_admin NOLOGIN; CREATE ROLE authenticator NOLOGIN; DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA IF NOT EXISTS extensions; CREATE EXTENSION IF NOT EXISTS btree_gist WITH SCHEMA extensions; CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions; CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\" WITH SCHEMA extensions; CREATE EXTENSION IF NOT EXISTS pg_stat_statements WITH SCHEMA extensions;"'
+          node scripts/prepare-orbit-restore-schema.mjs "$RUNNER_TEMP/orbit-restore/database-schema.sql" "$RUNNER_TEMP/orbit-restore/database-schema-isolated.sql"
+          node scripts/orbit-restore-copy-counts.mjs "$RUNNER_TEMP/orbit-restore/database-schema.sql" "$RUNNER_TEMP/orbit-restore/database-data.sql" > "$RUNNER_TEMP/orbit-restore/check-restored-counts.sql"
+          docker run --rm --network host -v "$RUNNER_TEMP/orbit-restore:/restore:ro" -e PGPASSWORD=orbit-restore-only postgres:17 sh -c 'psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -f /restore/database-schema-isolated.sql -f /restore/check-restored-counts.sql'
+          docker run --rm --network host -e PGPASSWORD=orbit-restore-only postgres:17 sh -c 'psql -h 127.0.0.1 -U postgres -d orbit_restore -v ON_ERROR_STOP=1 -c "SELECT count(*) AS auth_users_restored FROM auth.users;" -c "SELECT count(*) AS storage_objects_restored FROM storage.objects;" -c "SELECT count(*) AS staff_rows_restored FROM public.staff;"'
+
+      # Official backup certification 2026-11-19: preserve all prior backups.
+      - name: Record verified restore
+        run: node scripts/orbit-backup-run.mjs verify
+
+      - name: Record backup failure
+        if: ${{ (failure() || cancelled()) && env.ORBIT_ACTIVE_BACKUP_ID != '' }}
+        continue-on-error: true
+        run: node scripts/orbit-backup-run.mjs error
 
       - name: Cleanup temporary backup material
         if: always()
         shell: bash
         run: |
           set +e
-          rm -rf "$RUNNER_TEMP/orbit-backup"
+          rm -rf "$RUNNER_TEMP/orbit-backup" "$RUNNER_TEMP/orbit-restore"
