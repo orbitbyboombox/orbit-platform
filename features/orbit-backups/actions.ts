@@ -10,6 +10,9 @@ export async function startOrbitBackupAction() {
   const actor = await getConnectorAdministrator();
   if (!actor || isReadOnlyVisualPreview()) return { ok: false as const, error: "Acceso restringido." };
 
+  // The production deployment follows this release branch. Its workflow
+  // accepts the run ID and verifies the restore before updating the history.
+  const workflowRef = "codex/orbit-v218-production-normalization";
   const token = process.env.GITHUB_BACKUP_DISPATCH_TOKEN;
   if (!token) return { ok: false as const, error: "El disparador seguro de GitHub todavía no está configurado." };
   const client = createAdminClient();
@@ -27,7 +30,7 @@ export async function startOrbitBackupAction() {
       method: "POST",
       headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`,
         "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
-      body: JSON.stringify({ ref: "main", inputs: { confirmation: "BACKUP-ORBIT-2.1", backup_run_id: id } }),
+      body: JSON.stringify({ ref: workflowRef, inputs: { confirmation: "BACKUP-ORBIT-2.1", backup_run_id: id } }),
       cache: "no-store",
       signal: AbortSignal.timeout(10_000),
     });
