@@ -543,8 +543,18 @@ aside[aria-label="Nueva reserva"] aside {
     -webkit-tap-highlight-color: transparent;
   }
 
-  .orbit-premium-shell :where(a[aria-current="page"]) {
+  .orbit-premium-shell :where(nav a[aria-current="page"]) {
     color: var(--foreground);
+    box-shadow: inset 2px 0 var(--shell-brand);
+  }
+
+  .orbit-premium-shell > div > header {
+    border-bottom: 1px solid var(--shell-divider);
+    background-color: var(--shell-surface-deep);
+  }
+
+  .orbit-premium-shell > div > header :where(button, a) > svg {
+    flex-shrink: 0;
   }
 
   .orbit-premium-shell :where([role="tablist"], [data-tabs], .tabs) {

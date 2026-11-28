@@ -25,9 +25,9 @@ export function AppShell({ children, userEmail, userId, userName, userRole, acti
   return (
     <ResilientSyncProvider enabled={resilientSyncEnabled} organizationId="b00b0000-0000-4000-8000-000000000001" userId={userId}><ModuleManagerProvider modules={modules}><PersonalWorkspaceProvider initialPreferences={workspace}><div className="orbit-premium-shell min-h-screen bg-background">
       <Sidebar hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} />
-      <div className="transition-[padding] duration-200 md:pl-20 lg:pl-[15.25rem] peer-data-[collapsed=true]:lg:pl-20">
+      <div className="min-w-0 motion-safe:transition-[padding] motion-safe:duration-200 md:pl-20 lg:pl-[15.25rem] peer-data-[collapsed=true]:lg:pl-20">
         <Header actionableNotifications={actionableNotifications} hiddenNavigation={workspace.hiddenNavigation} navigationOrder={workspace.navigationOrder} resilientSyncEnabled={resilientSyncEnabled} userEmail={userEmail} userName={userName} userRole={userRole} />
-        <main className="min-h-[calc(100vh-4rem)] pb-20 sm:pb-24 md:pb-0">
+        <main className="min-w-0 min-h-[calc(100dvh-4rem)] pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-0">
           <PageContainer id="platform-workspace-content"><GlobalLayoutEngine/><ModuleAvailabilityGuard>{children}</ModuleAvailabilityGuard></PageContainer>
         </main>
         <footer className="px-5 py-5 sm:px-8"><div className="mx-auto flex max-w-[1600px] flex-col gap-2 border-t border-border/60 px-1 pt-4 sm:flex-row sm:items-center sm:justify-between"><BrandLogo className="h-6 w-24 opacity-80" surface="dark" /><BrandSignature className="sm:text-right" /></div></footer>

@@ -4,13 +4,13 @@ import { readFileSync } from "node:fs";
 
 const read = (path: string) => readFileSync(path, "utf8");
 
-test("ORBIT BOOMBOX release identifies itself as v2.1.8", () => {
+test("ORBIT BOOMBOX release identifies itself as v2.1.9 PREMIUM", () => {
   assert.match(read("package.json"), /"version": "2\.0\.0"/);
   assert.match(read("app/page.tsx"), /ORBIT_DISPLAY_VERSION/);
   assert.match(read("features/company-settings/types.ts"), /productVersion:"v2\.1\.6"/);
   const signature = read("components/brand-signature.tsx");
   const version = read("lib/orbit-version.ts");
-  assert.match(version, /ORBIT_DISPLAY_VERSION = "v2\.1\.8"/);
+  assert.match(version, /ORBIT_DISPLAY_VERSION = "v2\.1\.9 PREMIUM"/);
   assert.match(signature, /data-testid="brand-signature-version"[^>]*>\{settings\.productName\} \{ORBIT_DISPLAY_VERSION\}<\/p>/);
   assert.doesNotMatch(signature, /settings\.productVersion<\/p>/);
 });
