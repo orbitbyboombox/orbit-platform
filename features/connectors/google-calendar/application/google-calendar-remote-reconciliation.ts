@@ -103,10 +103,21 @@ export async function updateCanonicalCalendarEvent(args: {
   if (before.status !== "confirmed" || !before.etag || !before.updated) throw new Error(`El evento remoto de ${orbitEventId} no tiene estado/ETag verificable.`);
   const expectedPayload = mapOperationalEventToCalendar(input);
   const sourceHash = fingerprintCalendarOperationalInput(input);
-  const reference = await provider.updateEvent(eventId, expectedPayload, before.etag);
-  const after = await provider.getEvent(eventId);
-  const verified = verifyApprovedRemoteEvent(input, expectedPayload, after);
-  if (after.id !== eventId || after.etag === before.etag || after.updated === before.updated) throw new Error(`Calendar no confirmó una nueva versión para ${orbitEventId}.`);
+  // A canonical write is idempotent: if the remote event already matches ORBIT,
+  // persist its verified ETag/snapshot without forcing a no-op PATCH. Google can
+  // legitimately return the same ETag for that no-op, which is not a failure.
+  let after = before;
+  let reference = { googleEventId: before.id, googleEventUrl: before.htmlLink, updatedAt: before.updated! };
+  let verified;
+  try {
+    verified = verifyApprovedRemoteEvent(input, expectedPayload, before);
+  } catch {
+    const patchedReference = await provider.updateEvent(eventId, expectedPayload, before.etag);
+    reference = { ...patchedReference, updatedAt: patchedReference.updatedAt ?? before.updated! };
+    after = await provider.getEvent(eventId);
+    verified = verifyApprovedRemoteEvent(input, expectedPayload, after);
+    if (after.id !== eventId || after.etag === before.etag || after.updated === before.updated) throw new Error(`Calendar no confirmó una nueva versión para ${orbitEventId}.`);
+  }
   const snapshot = {
     id: after.id, calendarId: expectedCalendarId, etag: after.etag, updated: after.updated,
     status: after.status, summary: after.summary ?? "", description: after.description ?? "",
