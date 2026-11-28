@@ -7,8 +7,17 @@ import { loadModuleStatesCached } from "@/features/module-manager/repository";
 import { loadFounderWorkspaceCached } from "@/features/founder-workspace/repository";
 import { LegacyModalScrollGuard } from "@/components/ui/legacy-modal-scroll-guard";
 import { isMetaReviewerRole } from "@/lib/auth/roles";
+import { defaultModuleStates } from "@/features/module-manager/catalog";
+import { DEFAULT_WORKSPACE } from "@/features/founder-workspace/catalog";
 
 export const dynamic = "force-dynamic";
+
+function bounded<T>(promise: Promise<T>, fallback: T): Promise<T> {
+  return Promise.race([
+    promise.catch(() => fallback),
+    new Promise<T>((resolve) => setTimeout(() => resolve(fallback), 4_000)),
+  ]);
+}
 
 export default async function PlatformLayout({ children }: { children: React.ReactNode }) {
   const{data,error}=await getSupabaseRenderUser();
@@ -19,7 +28,11 @@ export default async function PlatformLayout({ children }: { children: React.Rea
   if(isMetaReviewerRole(profile.role))return <>{children}</>;
   // Module definitions are provisioned by the module-management workflow;
   // avoid an upsert on every route navigation in the global shell.
-  const [founderActionCount,modules,workspace]=await Promise.all([loadFounderActionCount(user.id),loadModuleStatesCached(),loadFounderWorkspaceCached(user.id)]);
+  const [founderActionCount,modules,workspace]=await Promise.all([
+    bounded(loadFounderActionCount(user.id), 0),
+    bounded(loadModuleStatesCached(), { ...defaultModuleStates }),
+    bounded(loadFounderWorkspaceCached(user.id), structuredClone(DEFAULT_WORKSPACE)),
+  ]);
   const resilientSyncEnabled = Boolean(process.env.RESILIENT_SYNC_ENABLED) && process.env.RESILIENT_SYNC_ENABLED !== "false";
   return <AppShell actionableNotifications={founderActionCount} modules={modules} resilientSyncEnabled={resilientSyncEnabled} userEmail={user.email} userId={user.id} userName={profile.display_name||"Founder"} userRole={profile.role==="CEO"?"Founder":"Administrador"} workspace={workspace}><LegacyModalScrollGuard/>{children}</AppShell>;
 }
