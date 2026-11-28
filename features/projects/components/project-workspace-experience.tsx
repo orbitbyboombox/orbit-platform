@@ -90,7 +90,7 @@ import {
 } from "./event-profitability-panel";
 import { saveFounderWorkspaceAction } from "@/features/founder-workspace/actions";
 import { confirmEventTimeAction } from "@/features/projects/actions/event-time.actions";
-import { synchronizeProjectCalendarAction } from "@/features/connectors/google-calendar";
+import { synchronizeProjectCalendarAction, updateCanonicalGoogleCalendarAction } from "@/features/connectors/google-calendar";
 import { acceptReviewedRemoteCalendarStateAction } from "@/features/connectors/google-calendar/application/google-calendar.actions";
 import type {
   EventModuleKey,
@@ -496,6 +496,7 @@ export function ProjectWorkspaceExperience(
   const [activeTab, setActiveTab] = useState<EventAdminTab>(initialEventAdminTab);
   const [, startWorkspaceTransition] = useTransition();
   const [calendarSyncFeedback, setCalendarSyncFeedback] = useState("");
+  const [canonicalCalendarUpdatePending, setCanonicalCalendarUpdatePending] = useState(false);
   const syncCalendarFromQuickAction = () =>
     startWorkspaceTransition(async () => {
       setCalendarSyncFeedback("Verificando Google Calendar…");
@@ -509,6 +510,17 @@ export function ProjectWorkspaceExperience(
           : result.error,
       );
     });
+  const updateCanonicalCalendarFromCommunications = () => {
+    if (!props.projectKey) return;
+    setCanonicalCalendarUpdatePending(true);
+    setCalendarSyncFeedback("Actualizando Google Calendar desde ORBIT…");
+    void updateCanonicalGoogleCalendarAction(props.projectKey)
+      .then((result) => {
+        setCalendarSyncFeedback(result.ok ? "Google Calendar actualizado desde ORBIT." : result.error);
+        if (result.ok) router.refresh();
+      })
+      .finally(() => setCanonicalCalendarUpdatePending(false));
+  };
   const event = props.event360;
   const formatClock = (value: string | null | undefined) => {
     if (!value) return "Por confirmar";
@@ -1895,6 +1907,15 @@ export function ProjectWorkspaceExperience(
 
           {activeTab === "COMMUNICATIONS" && calendarSyncFeedback && <p role="status" className="text-sm">{calendarSyncFeedback}</p>}
           {activeTab === "COMMUNICATIONS" && <PreEventReminderControl projectId={props.projectKey ?? ""} />}
+
+          {activeTab === "COMMUNICATIONS" && event.google.calendarStatus === "UPDATE_REQUIRED" && (
+            <Section eyebrow="Calendar canónico" icon={<CalendarClock className="size-5" />} id="calendar-canonical-update" title="Actualizar desde ORBIT">
+              <p className="text-sm leading-6 text-muted">ORBIT es la fuente oficial. Se conserva el evento remoto, su identificador y se actualiza con ETag, lectura posterior y auditoría.</p>
+              <button className="mt-4 rounded-lg border px-4 py-2 text-sm font-semibold hover:border-brand disabled:opacity-50" disabled={canonicalCalendarUpdatePending} onClick={updateCanonicalCalendarFromCommunications} type="button">
+                {canonicalCalendarUpdatePending ? "Actualizando desde ORBIT…" : "Actualizar desde ORBIT"}
+              </button>
+            </Section>
+          )}
 
           {activeTab === "COMMUNICATIONS" && ["ORB-2026-162036", "ORB-2026-438017", "ORB-2027-919683"].includes(event.orbitEventId) && event.google.calendarStatus === "UPDATE_REQUIRED" && (
             <Section eyebrow="Revisión protegida" icon={<CalendarClock className="size-5" />} id="calendar-remote-review" title="Cambio detectado en Google Calendar">
