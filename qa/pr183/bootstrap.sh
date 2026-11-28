@@ -125,7 +125,11 @@ for migration in supabase/migrations/*.sql.disabled; do
       apply_migration supabase/migrations/20261126_allow_pre_sii_invoice_origin.sql.disabled
       apply_migration supabase/migrations/20261126_finance_premium_tributary_close.sql.disabled
       ;;
-    20261126_allow_pre_sii_invoice_origin.sql.disabled|20261126_finance_premium_tributary_close.sql.disabled)
+    20261127210000_manual_roster_unpaid_support.sql.disabled)
+      # The baseline table must exist before adding its payroll and RUT guards.
+      apply_migration supabase/migrations/20261128090000_event_manual_roster_members.sql.disabled
+      ;;
+    20261126_allow_pre_sii_invoice_origin.sql.disabled|20261126_finance_premium_tributary_close.sql.disabled|20261128090000_event_manual_roster_members.sql.disabled)
       continue
       ;;
   esac
