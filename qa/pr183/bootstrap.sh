@@ -34,10 +34,9 @@ from pathlib import Path
 path = Path('supabase/migrations/20261007200500_fix_staff_settlement_record_access.sql')
 source = path.read_text()
 malformed = '\n+create or replace function public.calculate_staff_monthly_settlement('
-if malformed not in source:
-    raise SystemExit('Expected isolated-only malformed migration prefix was not found')
-path.write_text(source.replace(malformed, '\ncreate or replace function public.calculate_staff_monthly_settlement(', 1))
-print('Removed one malformed patch prefix from isolated migration copy; repository file unchanged.')
+if malformed in source:
+    path.write_text(source.replace(malformed, '\ncreate or replace function public.calculate_staff_monthly_settlement(', 1))
+    print('Removed one malformed patch prefix from isolated migration copy; repository file unchanged.')
 path = Path('supabase/migrations/20261009223000_paper_initial_inventory_and_wcm.sql')
 source = path.read_text()
 start = source.index('do $$\n')
@@ -128,6 +127,9 @@ for migration in supabase/migrations/*.sql.disabled; do
     20261127210000_manual_roster_unpaid_support.sql.disabled)
       # The baseline table must exist before adding its payroll and RUT guards.
       apply_migration supabase/migrations/20261128090000_event_manual_roster_members.sql.disabled
+      ;;
+    20261127215522_restrict_anon_finance_projection_access.sql.disabled)
+      apply_migration qa/pr183/finance-projection-baseline.sql
       ;;
     20261126_allow_pre_sii_invoice_origin.sql.disabled|20261126_finance_premium_tributary_close.sql.disabled|20261128090000_event_manual_roster_members.sql.disabled)
       continue

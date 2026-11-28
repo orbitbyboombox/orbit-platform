@@ -172,7 +172,7 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
     client
       .from("staff_expense_submissions")
       .select(
-        "id,staff_id,project_id,document_id,category,amount,occurred_on,payment_method,description,notes,receipt_path,status,reimbursement,submitted_at,rejection_reason,materialized_expense_id,staff(first_name,last_name),projects(name,orbit_event_id)",
+        "id,staff_id,project_id,document_id,category,amount,occurred_on,payment_method,description,notes,receipt_path,status,reimbursement,submitted_at,reviewed_at,cancelled_at,cancelled_by,cancellation_reason,rejection_reason,materialized_expense_id,staff(first_name,last_name),projects(name,orbit_event_id)",
       )
       .order("submitted_at", { ascending: false }),
     client.from("staff_monthly_accounts").select(STAFF_MONTHLY_ACCOUNT_SELECT).order("accounting_month",{ascending:false}),
@@ -745,6 +745,12 @@ export default async function StaffManagementPage({searchParams}:{searchParams:P
         amount: Number(item.amount),
         status: payment ? "PAGADO" : item.status === "APPROVED" ? "PENDIENTE" : item.status,
         receiptDocumentId: payment?.receipt_document_id ?? item.document_id ?? null,
+        paymentId: payment?.id ?? null,
+        paidOn: payment?.paid_on ?? null,
+        approvedAt: item.reviewed_at ?? null,
+        cancelledAt: item.cancelled_at ?? null,
+        cancelledBy: item.cancelled_by ?? null,
+        cancellationReason: item.cancellation_reason ?? null,
       };
     });
   const onboardingInvitations: StaffOnboardingInvitation[] = (

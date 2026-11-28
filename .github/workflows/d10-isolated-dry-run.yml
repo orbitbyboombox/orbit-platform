@@ -8,6 +8,7 @@ on:
       - 'features/connectors/google-gmail/**'
       - 'qa/d10/**'
       - 'qa/pr183/bootstrap.sh'
+      - 'qa/pr183/finance-projection-baseline.sql'
       - '.github/workflows/d10-isolated-dry-run.yml'
   workflow_dispatch:
 

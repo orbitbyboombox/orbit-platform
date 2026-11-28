@@ -1,6 +1,6 @@
 begin;
 
-+create or replace function public.calculate_staff_monthly_settlement(
+create or replace function public.calculate_staff_monthly_settlement(
   p_staff_id uuid,
   p_month date
 )

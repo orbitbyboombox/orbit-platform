@@ -21,6 +21,7 @@ import { StaffMonthlyAccountPanel } from "@/features/staff-monthly-account/staff
 import { BoletaSosPanel } from "@/features/staff-monthly-account/boleta-sos-panel";
 import { generateMonthlyStaffAccountsAction, getIndividualBoletaSentStatuses, requestIndividualStaffBoletaAction } from "@/features/staff-monthly-account/actions";
 import { registerMonthlyStaffPaymentAction } from "@/features/staff-monthly-account/actions";
+import { cancelStaffExpenseAction } from "@/features/staff-expenses/staff-expense-review.actions";
 import type { StaffMonthlyAccount } from "@/features/staff-monthly-account/model";
 
 export type StaffPaymentEvent = {
@@ -80,6 +81,12 @@ export type StaffReimbursementDetail = {
   amount: number;
   status: string;
   receiptDocumentId: string | null;
+  paymentId: string | null;
+  paidOn: string | null;
+  approvedAt: string | null;
+  cancelledAt: string | null;
+  cancelledBy: string | null;
+  cancellationReason: string | null;
 };
 const money = new Intl.NumberFormat("es-CL", {
   style: "currency",
@@ -126,6 +133,9 @@ function AdminFinanceSummary({
   };
   reimbursements: StaffReimbursementDetail[];
 }) {
+  const [cancelItem, setCancelItem] = useState<StaffReimbursementDetail | null>(null);
+  const [cancelMessage, setCancelMessage] = useState("");
+  const [cancelPending, startCancel] = useTransition();
   const upcoming = row.eventRows.filter((item) => !["COMPLETED", "PAID", "FINISHED", "CLOSED"].includes(item.status));
   const upcomingTotal = upcoming.reduce((sum, item) => sum + item.finalAmount, 0);
   const honorariaPending = Math.max(row.outstanding - row.reimbursementsPending, 0);
@@ -162,11 +172,19 @@ function AdminFinanceSummary({
       <details className="rounded-xl border bg-background">
         <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>REEMBOLSOS</span><span>{money.format(row.reimbursementsPending)} ›</span></summary>
         <div className="space-y-2 border-t p-3 text-sm">
-          {reimbursements.map((item) => <div className="rounded-lg border p-3" key={item.id}><div className="flex justify-between gap-3"><span>{item.occurredOn} · {item.eventName}</span><strong>{money.format(item.amount)}</strong></div><p className="text-muted">{item.category}{item.description ? ` · ${item.description}` : ""}</p><p className="text-xs">Estado: {item.status}{item.receiptDocumentId ? " · Comprobante disponible" : " · Sin comprobante"}</p></div>)}
+          {reimbursements.map((item) => <div className="rounded-lg border p-3" key={item.id}>
+            <div className="flex items-start justify-between gap-3"><div><p>{item.occurredOn} · {item.eventName}</p><p className="text-xs text-muted">ID: {item.id}</p></div><strong>{money.format(item.amount)}</strong></div>
+            <p className="text-muted">{item.category}{item.description ? ` · ${item.description}` : ""}</p>
+            <p className="text-xs">Estado: {item.status === "CANCELLED" ? "ANULADO" : item.status} · Aprobado: {item.approvedAt ?? "—"} · Pago: {item.paymentId ? `PAGADO ${item.paidOn ?? ""}` : "PENDIENTE"}</p>
+            {item.cancelledAt ? <p className="text-xs">Anulado: {item.cancelledAt} · Motivo: {item.cancellationReason ?? "—"}</p> : null}
+            <p className="text-xs">{item.receiptDocumentId ? `Comprobante: ${item.receiptDocumentId}` : "Sin comprobante"}</p>
+            {item.status === "PENDIENTE" ? <details className="mt-2 text-sm"><summary className="cursor-pointer font-semibold">•••</summary><div className="mt-2 flex flex-wrap gap-2"><span className="rounded-lg border px-3 py-2 text-muted">Ver detalle</span><button className="rounded-lg border border-amber-500/40 px-3 py-2 font-semibold text-amber-300" onClick={() => { setCancelItem(item); setCancelMessage(""); }} type="button">Anular reembolso</button><span className="rounded-lg border px-3 py-2 text-muted">Marcar como pagado: usar flujo financiero</span></div></details> : null}
+          </div>)}
           {!reimbursements.length ? <p className="text-muted">Sin reembolsos registrados.</p> : null}
           {pendingMismatch || paidMismatch ? <p className="text-sm font-semibold text-amber-300">Inconsistencia: el total no coincide con los registros visibles.</p> : null}
         </div>
       </details>
+      {cancelItem ? <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-sm"><p className="font-semibold">¿Anular este reembolso?</p><p className="mt-1">Este reembolso dejará de formar parte del saldo pendiente. El registro permanecerá en el historial para auditoría.</p><form className="mt-3 space-y-2" action={(form) => startCancel(async () => { form.set("submissionId", cancelItem.id); const result = await cancelStaffExpenseAction(form); setCancelMessage(result.message); if (result.ok) setCancelItem(null); })}><input className="min-h-11 w-full rounded-lg border bg-background px-3" name="reason" placeholder="Motivo obligatorio" minLength={3} required /><div className="flex flex-wrap gap-2"><button className="rounded-lg border px-3 py-2" disabled={cancelPending} onClick={() => setCancelItem(null)} type="button">Cancelar</button><button className="rounded-lg border border-amber-500/40 px-3 py-2 font-semibold text-amber-300" disabled={cancelPending} type="submit">{cancelPending ? "Anulando…" : "Confirmar anulación"}</button></div></form>{cancelMessage ? <p className="mt-2 text-xs" role="alert">{cancelMessage}</p> : null}</div> : null}
       <details className="rounded-xl border bg-background"><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>CIERRE MENSUAL</span><span>{money.format(row.account?.finalTransferAmount ?? 0)} ›</span></summary><div className="border-t p-3 text-sm text-muted">Detalle disponible en la liquidación mensual.</div></details>
       <details className="rounded-xl border bg-background"><summary className="flex min-h-12 cursor-pointer list-none items-center justify-between px-3 text-sm font-semibold [&::-webkit-details-marker]:hidden"><span>DATOS / BOLETA</span><span>›</span></summary><div className="border-t p-3 text-sm text-muted">Datos disponibles en el cierre mensual.</div></details>
     </section>
