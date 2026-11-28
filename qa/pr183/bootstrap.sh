@@ -111,7 +111,23 @@ restore_migrations() {
 }
 trap restore_migrations EXIT
 supabase start --exclude studio,imgproxy,edge-runtime,logflare,vector,supavisor
-for migration in supabase/migrations/*.sql.disabled; do
+apply_migration() {
+  local migration="$1"
   echo "Applying isolated migration $(basename "$migration")..."
   docker exec -i supabase_db_orbit_pr183_isolated psql -U postgres -d postgres -v ON_ERROR_STOP=1 < "$migration"
+}
+
+for migration in supabase/migrations/*.sql.disabled; do
+  case "$(basename "$migration")" in
+    20261126212000_tributary_ledger_snapshot_totals.sql.disabled)
+      # The older YYYYMMDD names sort after this YYYYMMDDHHMMSS name.
+      # Apply the original column/ledger definitions before replacing the view.
+      apply_migration supabase/migrations/20261126_allow_pre_sii_invoice_origin.sql.disabled
+      apply_migration supabase/migrations/20261126_finance_premium_tributary_close.sql.disabled
+      ;;
+    20261126_allow_pre_sii_invoice_origin.sql.disabled|20261126_finance_premium_tributary_close.sql.disabled)
+      continue
+      ;;
+  esac
+  apply_migration "$migration"
 done
