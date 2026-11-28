@@ -8,10 +8,14 @@ on:
       - 'lib/supabase/auth-errors.ts'
       - 'lib/supabase/fetch-with-retry.ts'
       - 'lib/supabase/middleware.ts'
+      - 'lib/resilient-sync/server.ts'
+      - 'app/api/resilient-sync/status/route.ts'
+      - 'components/resilient-sync/resilient-sync-provider.tsx'
       - 'tests/auth-transport-recovery.test.mts'
       - 'tests/dashboard-quick-diagnostics.test.mts'
       - 'tests/performance-staff-shell.test.mts'
       - 'tests/supabase-fetch-with-retry.test.mts'
+      - 'tests/resilient-sync-rollout.test.mts'
       - '.github/workflows/access-stabilization-linux-validation.yml'
 
 permissions:
@@ -38,6 +42,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm exec tsc --noEmit
-      - run: pnpm exec eslint 'app/(platform)/layout.tsx' 'features/founder-action-center/index.ts' lib/supabase/auth-errors.ts lib/supabase/middleware.ts lib/supabase/fetch-with-retry.ts tests/auth-transport-recovery.test.mts tests/dashboard-quick-diagnostics.test.mts tests/performance-staff-shell.test.mts tests/supabase-fetch-with-retry.test.mts
-      - run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/auth-transport-recovery.test.mts tests/dashboard-quick-diagnostics.test.mts tests/performance-staff-shell.test.mts tests/supabase-fetch-with-retry.test.mts
+      - run: pnpm exec eslint 'app/(platform)/layout.tsx' 'features/founder-action-center/index.ts' lib/supabase/auth-errors.ts lib/supabase/middleware.ts lib/supabase/fetch-with-retry.ts lib/resilient-sync/server.ts app/api/resilient-sync/status/route.ts components/resilient-sync/resilient-sync-provider.tsx tests/auth-transport-recovery.test.mts tests/dashboard-quick-diagnostics.test.mts tests/performance-staff-shell.test.mts tests/supabase-fetch-with-retry.test.mts tests/resilient-sync-rollout.test.mts
+      - run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/auth-transport-recovery.test.mts tests/dashboard-quick-diagnostics.test.mts tests/performance-staff-shell.test.mts tests/supabase-fetch-with-retry.test.mts tests/resilient-sync-rollout.test.mts
       - run: pnpm exec next build
