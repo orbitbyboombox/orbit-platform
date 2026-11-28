@@ -114,8 +114,9 @@ jobs:
 
       - name: Upload encrypted backup to restricted Drive folder
         run: |
-          npm install --no-save --no-package-lock googleapis@144.0.0
-          node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-backup"
+          mkdir -p "$RUNNER_TEMP/orbit-drive-client"
+          npm --prefix "$RUNNER_TEMP/orbit-drive-client" install --no-save --no-package-lock --ignore-scripts googleapis@144.0.0
+          NODE_PATH="$RUNNER_TEMP/orbit-drive-client/node_modules" node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-backup"
 
       - name: Cleanup temporary backup material
         if: always()
