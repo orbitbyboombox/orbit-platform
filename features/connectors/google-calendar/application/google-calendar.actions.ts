@@ -6,7 +6,7 @@ import {usesNOVAGoogleCore} from "@/features/connectors/google-workspace/applica
 import type {GoogleCalendarSyncOperation} from "../types/google-calendar-live.types";
 import {syncStaleGoogleCalendarEvents} from "./google-calendar-resync.service";
 import { prepareConfirmedReservationCalendar } from "./google-calendar-sync.service";
-import { acceptReviewedRemoteCalendarEvent, RECONCILABLE_ORBIT_EVENT_IDS, updateCanonicalCalendarEvent } from "./google-calendar-remote-reconciliation";
+import { acceptReviewedRemoteCalendarEvent, updateCanonicalCalendarEvent } from "./google-calendar-remote-reconciliation";
 import { GoogleCalendarApiProvider } from "../provider/google-calendar-live.provider";
 import { loadGoogleWorkspaceAccessToken, loadGoogleWorkspaceCalendarId, loadGoogleWorkspaceConnection } from "@/features/connectors/google-workspace/application/google-workspace.repository";
 import { mapOperationalEventToCalendar } from "./google-calendar-live";
@@ -52,7 +52,6 @@ export async function acceptReviewedRemoteCalendarStateAction(projectId: string)
     if (!profile || !["CEO", "ADMINISTRATOR"].includes(profile.role)) throw new Error("Solo Founder/Admin puede aceptar una revisión remota.");
     const prepared = await prepareConfirmedReservationCalendar(client, projectId);
     const orbitEventId = prepared.project.orbit_event_id;
-    if (!RECONCILABLE_ORBIT_EVENT_IDS.has(orbitEventId)) throw new Error("Este evento no está habilitado para la reconciliación solicitada.");
     // This action only acknowledges an already-linked, explicitly approved remote event.
     // It does not create or modify Calendar, so commercial reservation/contract eligibility
     // must not block the narrowly allowlisted reconciliation.

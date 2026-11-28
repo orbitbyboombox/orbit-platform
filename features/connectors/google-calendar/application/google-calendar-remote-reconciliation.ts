@@ -5,10 +5,6 @@ import type { GoogleCalendarApiProvider } from "../provider/google-calendar-live
 import { fingerprintReviewedCalendarEvent, verifyApprovedRemoteEvent } from "./calendar-remote-review-policy";
 import { mapOperationalEventToCalendar, fingerprintCalendarOperationalInput } from "./google-calendar-live";
 
-export const RECONCILABLE_ORBIT_EVENT_IDS = new Set([
-  "ORB-2026-162036", "ORB-2026-438017", "ORB-2027-919683",
-]);
-
 type SyncSnapshot = {
   id: string; orbit_event_id: string; project_id: string; status: string; updated_at: string;
   external_event_id: string | null; external_url: string | null;
@@ -23,7 +19,7 @@ export async function acceptReviewedRemoteCalendarEvent(args: {
 }) {
   const { client, provider, input, actorId, expectedCalendarId } = args;
   const orbitEventId = input.orbitEventId;
-  if (!orbitEventId || !RECONCILABLE_ORBIT_EVENT_IDS.has(orbitEventId)) throw new Error("Este ORBIT Event ID no está habilitado para reconciliación revisada.");
+  if (!orbitEventId) throw new Error("El evento no tiene ORBIT Event ID.");
   if (!provider.calendarId || provider.calendarId !== expectedCalendarId) throw new Error("El calendario autenticado no coincide con el destino persistido; no se moverá ni recreará el evento.");
   const { data: rows, error } = await client.from("calendar_sync").select("id,orbit_event_id,project_id,status,updated_at,external_event_id,external_url,nova_external_event_id,nova_external_url,nova_calendar_id,current_payload_hash,current_event_revision,approved_remote_etag").eq("orbit_event_id", orbitEventId).limit(2);
   if (error) throw error;
@@ -103,6 +99,22 @@ export async function updateCanonicalCalendarEvent(args: {
   if (before.status !== "confirmed" || !before.etag || !before.updated) throw new Error(`El evento remoto de ${orbitEventId} no tiene estado/ETag verificable.`);
   const expectedPayload = mapOperationalEventToCalendar(input);
   const sourceHash = fingerprintCalendarOperationalInput(input);
+
+  // If Google already reflects ORBIT, only confirm the verified snapshot. This
+  // avoids an unnecessary PATCH and makes retries safe after a prior partial
+  // completion where Google succeeded but Supabase confirmation did not.
+  let remoteMatchesCanonical = false;
+  try {
+    verifyApprovedRemoteEvent(input, expectedPayload, before);
+    remoteMatchesCanonical = true;
+  } catch (error) {
+    if (!(error instanceof Error) || !/El evento remoto|La citación|El título|La dirección|El horario|El campo|Los extras|La descripción/.test(error.message)) throw error;
+  }
+  if (remoteMatchesCanonical) {
+    const accepted = await acceptReviewedRemoteCalendarEvent({ client, provider, input, actorId, expectedCalendarId });
+    return { result: accepted.result, orbitEventId, googleEventId: eventId, googleEventUrl: remoteUrl ?? undefined, beforeEtag: before.etag, etag: accepted.etag, sourceHash: accepted.sourceHash, remoteHash: accepted.remoteHash, start: accepted.start, end: accepted.end };
+  }
+
   const reference = await provider.updateEvent(eventId, expectedPayload, before.etag);
   const after = await provider.getEvent(eventId);
   const verified = verifyApprovedRemoteEvent(input, expectedPayload, after);
@@ -119,7 +131,17 @@ export async function updateCanonicalCalendarEvent(args: {
     p_remote_hash: verified.remoteHash, p_remote_etag: after.etag, p_remote_updated_at: after.updated,
     p_remote_snapshot: snapshot, p_event_revision: row.current_event_revision ?? 0, p_actor_id: actorId,
   });
-  if (rpcError) throw rpcError;
+  if (rpcError) {
+    // Google may have committed the PATCH while the database transaction was
+    // rejected by a concurrent writer. Re-read and confirm only if the remote
+    // snapshot still matches ORBIT; otherwise preserve the original failure.
+    try {
+      const recovered = await acceptReviewedRemoteCalendarEvent({ client, provider, input, actorId, expectedCalendarId });
+      return { result: recovered.result, orbitEventId, googleEventId: eventId, googleEventUrl: remoteUrl ?? reference.googleEventUrl, beforeEtag: before.etag, etag: recovered.etag, sourceHash: recovered.sourceHash, remoteHash: recovered.remoteHash, start: recovered.start, end: recovered.end, recoveredAfterRemoteWrite: true };
+    } catch {
+      throw rpcError;
+    }
+  }
   return { result: result as string, orbitEventId, googleEventId: eventId, googleEventUrl: remoteUrl ?? reference.googleEventUrl, beforeEtag: before.etag, etag: after.etag, sourceHash, remoteHash: verified.remoteHash, start: verified.start, end: verified.end };
 }
 

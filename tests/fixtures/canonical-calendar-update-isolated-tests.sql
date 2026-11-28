@@ -62,6 +62,26 @@ begin
   if audit_count <> 1 then raise exception 'expected exactly one canonical audit row, got %', audit_count; end if;
 end $$;
 
+-- A remote snapshot can be confirmed for any active linked event, and a
+-- repeated confirmation is idempotent even with the original optimistic token.
+select updated_at as expected_updated_at from public.calendar_sync where id = :'sync_id_2' \gset accept_
+select public.accept_approved_calendar_remote_state(
+  :'sync_id_2', :'event_id_2', :'accept_expected_updated_at'::timestamptz, 'source-hash-2',
+  'source-hash-2', 'remote-hash-2', 'etag-2', '2026-11-27T12:00:00Z'::timestamptz,
+  '{"id":"remote-370-002","calendarId":"calendar-370","etag":"etag-2"}'::jsonb, 2, :'admin_id'::uuid
+);
+select public.accept_approved_calendar_remote_state(
+  :'sync_id_2', :'event_id_2', :'accept_expected_updated_at'::timestamptz, 'source-hash-2',
+  'source-hash-2', 'remote-hash-2', 'etag-2', '2026-11-27T12:00:00Z'::timestamptz,
+  '{"id":"remote-370-002","calendarId":"calendar-370","etag":"etag-2"}'::jsonb, 2, :'admin_id'::uuid
+);
+do $$
+begin
+  if (select count(*) from public.audit_events where action = 'REMOTE_STATE_ACCEPTED' and orbit_event_id = 'ORB-TEST-370-002') <> 1 then
+    raise exception 'remote confirmation was not audited exactly once';
+  end if;
+end $$;
+
 select set_config('request.jwt.claim.sub', :'readonly_id', false);
 do $$
 begin
