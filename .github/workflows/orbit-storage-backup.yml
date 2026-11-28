@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: orbit-supabase-storage-backup
@@ -25,7 +26,8 @@ jobs:
       SUPABASE_URL: ${{ vars.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
-      GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON }}
+      GOOGLE_SERVICE_ACCOUNT: ${{ vars.GOOGLE_SERVICE_ACCOUNT }}
+      GOOGLE_WORKLOAD_IDENTITY_PROVIDER: ${{ vars.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
       GOOGLE_DRIVE_PARENT_FOLDER_ID: ${{ vars.GOOGLE_DRIVE_PARENT_FOLDER_ID }}
     steps:
       - name: Checkout exact backup source
@@ -33,6 +35,13 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 1
+
+      - name: Authenticate to Google Drive with Workload Identity Federation
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GOOGLE_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.GOOGLE_SERVICE_ACCOUNT }}
+          create_credentials_file: true
 
       - name: Install Node runtime
         uses: actions/setup-node@v4
@@ -48,7 +57,7 @@ jobs:
           set -euo pipefail
           umask 077
           missing=()
-          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY BACKUP_ENCRYPTION_PASSPHRASE GOOGLE_DRIVE_SERVICE_ACCOUNT_JSON GOOGLE_DRIVE_PARENT_FOLDER_ID; do
+          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY BACKUP_ENCRYPTION_PASSPHRASE GOOGLE_SERVICE_ACCOUNT GOOGLE_WORKLOAD_IDENTITY_PROVIDER GOOGLE_DRIVE_PARENT_FOLDER_ID; do
             if [[ -z "${!name:-}" ]]; then
               missing+=("$name")
             fi
@@ -96,8 +105,9 @@ jobs:
 
       - name: Upload encrypted Storage backup to Drive and verify SHA-256
         run: |
-          npm install --no-save --no-package-lock googleapis@144.0.0
-          node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-storage-backup"
+          mkdir -p "$RUNNER_TEMP/orbit-drive-client"
+          npm --prefix "$RUNNER_TEMP/orbit-drive-client" install --no-save --no-package-lock --ignore-scripts googleapis@144.0.0
+          NODE_PATH="$RUNNER_TEMP/orbit-drive-client/node_modules" node scripts/upload-drive-backup.mjs "$RUNNER_TEMP/orbit-storage-backup"
 
       - name: Cleanup temporary Storage material
         if: always()
